@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from config.settings import TEXT_PREVIEW_LIMIT
+from modules.abstractive_engine import summarize_english_transformer
 from modules.evaluation import compare_summaries
 from modules.extractive_engine import summarize_with_textrank, summarize_with_tfidf
 from modules.language_detector import detect_language
@@ -88,6 +89,70 @@ def render_comparison_metrics(comparison: dict[str, Any]) -> None:
             st.write("No common selected sentences.")
 
 
+def render_compare_both_results(
+    tfidf_result: dict[str, Any],
+    textrank_result: dict[str, Any],
+    original_text: str,
+) -> None:
+    """Render both extractive summaries and their shared comparison metrics."""
+    tfidf_tab, textrank_tab = st.tabs(["TF-IDF", "TextRank"])
+
+    with tfidf_tab:
+        render_summary_result(tfidf_result)
+
+    with textrank_tab:
+        render_summary_result(textrank_result)
+
+    st.divider()
+    comparison_container = st.container()
+    with comparison_container:
+        render_comparison_metrics(
+            compare_summaries(tfidf_result, textrank_result, original_text)
+        )
+
+
+def render_transformer_result(result: dict[str, Any]) -> None:
+    """Render one Transformer summarization result in the Streamlit UI."""
+    st.markdown("### Transformer Summary")
+
+    error_message = result.get("error")
+    chunk_errors = result.get("chunk_errors", [])
+
+    if error_message:
+        st.error(str(error_message))
+
+    if result["summary"]:
+        st.write(result["summary"])
+    elif not error_message:
+        st.warning("No summary was generated.")
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Model", result["model_name"])
+    col2.metric("Chunks", result["chunk_count"])
+    col3.metric("Input Words", result["input_word_count"])
+    col4.metric("Summary Words", result["summary_word_count"])
+
+    with st.expander("Chunk summaries"):
+        chunk_summaries = result["chunk_summaries"]
+        if chunk_summaries:
+            for index, chunk_summary in enumerate(chunk_summaries, start=1):
+                st.write(f"{index}. {chunk_summary}")
+        else:
+            st.write("No chunk summaries available.")
+
+    if error_message:
+        with st.expander("Debug details"):
+            st.write(f"Error: {error_message}")
+            st.write(f"Model: {result['model_name']}")
+            st.write(f"Chunk count: {result['chunk_count']}")
+            st.write(f"Input word count: {result['input_word_count']}")
+            st.write(f"Summary word count: {result['summary_word_count']}")
+            if chunk_errors:
+                st.write("Chunk errors:")
+                for error in chunk_errors:
+                    st.write(f"- {error}")
+
+
 def main() -> None:
     """Run the Streamlit application."""
     st.set_page_config(
@@ -161,7 +226,7 @@ def main() -> None:
     st.subheader("Summarization")
     summary_method = st.selectbox(
         "Summarization method",
-        options=["TF-IDF", "TextRank", "Compare Both"],
+        options=["TF-IDF", "TextRank", "Compare Both", "Transformer"],
     )
     summary_ratio = st.selectbox(
         "Summary ratio",
@@ -179,23 +244,29 @@ def main() -> None:
             render_summary_result(
                 summarize_with_textrank(display_text, summary_ratio=summary_ratio)
             )
+        elif summary_method == "Transformer":
+            if detected_language != "en":
+                st.warning(
+                    "Transformer summarization is currently implemented only for English. "
+                    "Turkish support will be added later."
+                )
+            else:
+                with st.spinner("Loading Transformer model and generating summary..."):
+                    transformer_result = summarize_english_transformer(display_text)
+                render_transformer_result(transformer_result)
         else:
             tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
             textrank_result = summarize_with_textrank(
                 display_text,
                 summary_ratio=summary_ratio,
             )
-            tfidf_tab, textrank_tab = st.tabs(["TF-IDF", "TextRank"])
-            with tfidf_tab:
-                render_summary_result(tfidf_result)
-            with textrank_tab:
-                render_summary_result(textrank_result)
-
-            render_comparison_metrics(
-                compare_summaries(tfidf_result, textrank_result, display_text)
+            render_compare_both_results(
+                tfidf_result,
+                textrank_result,
+                display_text,
             )
 
-    # TODO: Add Transformer-based summarization controls and output comparison.
+    # TODO: Add Turkish Transformer summarization once the Turkish model flow is ready.
 
 
 if __name__ == "__main__":
