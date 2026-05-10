@@ -4,14 +4,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+from config.settings import TEXT_PREVIEW_LIMIT
 from modules.language_detector import detect_language
 from modules.pdf_reader import PDFReadError, extract_text_from_pdf
-from utils.text_cleaner import normalize_whitespace
-
-
-def count_words(text: str) -> int:
-    """Return the number of whitespace-separated words in the text."""
-    return len(text.split())
+from modules.preprocessing import preprocess_text
 
 
 def main() -> None:
@@ -39,20 +35,50 @@ def main() -> None:
         st.error(str(error))
         return
 
-    cleaned_text = normalize_whitespace(extracted_text)
-    detected_language = detect_language(cleaned_text)
+    if not extracted_text.strip():
+        st.warning("No extractable text was found in this PDF.")
+        return
+
+    detected_language = detect_language(extracted_text)
+    preprocessing_result = preprocess_text(extracted_text, detected_language)
+    display_text = str(preprocessing_result["display_text"])
+    nlp_text = str(preprocessing_result["nlp_text"])
+    stats = preprocessing_result["stats"]
+
+    if not isinstance(stats, dict):
+        st.error("Preprocessing failed to produce document statistics.")
+        return
 
     st.subheader("Document Statistics")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Detected Language", detected_language)
-    col2.metric("Character Count", len(cleaned_text))
-    col3.metric("Word Count", count_words(cleaned_text))
+    col2.metric("Raw Characters", stats["raw_character_count"])
+    col3.metric("Raw Words", stats["raw_word_count"])
+    col4.metric("Cleaned Characters", stats["cleaned_character_count"])
+    col5.metric("Cleaned Words", stats["cleaned_word_count"])
 
-    st.subheader("Extracted Text Preview")
-    if cleaned_text:
-        st.text_area("Preview", cleaned_text[:3000], height=350)
-    else:
-        st.warning("No extractable text was found in this PDF.")
+    raw_tab, cleaned_tab, nlp_tab = st.tabs(["Raw Text", "Cleaned Text", "NLP Text"])
+
+    with raw_tab:
+        st.text_area(
+            "Raw text preview",
+            extracted_text[:TEXT_PREVIEW_LIMIT],
+            height=350,
+        )
+
+    with cleaned_tab:
+        st.text_area(
+            "Cleaned text preview",
+            display_text[:TEXT_PREVIEW_LIMIT],
+            height=350,
+        )
+
+    with nlp_tab:
+        st.text_area(
+            "NLP text preview",
+            nlp_text[:TEXT_PREVIEW_LIMIT],
+            height=350,
+        )
 
     # TODO: Add TF-IDF summarization controls and output comparison.
     # TODO: Add TextRank summarization controls and output comparison.
