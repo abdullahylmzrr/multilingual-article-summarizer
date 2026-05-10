@@ -2,13 +2,39 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import streamlit as st
 
 from config.settings import TEXT_PREVIEW_LIMIT
-from modules.extractive_engine import summarize_with_tfidf
+from modules.extractive_engine import summarize_with_textrank, summarize_with_tfidf
 from modules.language_detector import detect_language
 from modules.pdf_reader import PDFReadError, extract_text_from_pdf
 from modules.preprocessing import preprocess_text
+
+
+def render_summary_result(result: dict[str, Any]) -> None:
+    """Render one summarization result in the Streamlit UI."""
+    method = str(result["method"])
+
+    st.markdown(f"### {method} Summary")
+    if result["summary"]:
+        st.write(result["summary"])
+    else:
+        st.warning("No summary could be generated from the current text.")
+
+    if result.get("message"):
+        st.info(str(result["message"]))
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Original Sentences", result["original_sentence_count"])
+    col2.metric("Valid Sentences", result["valid_sentence_count"])
+    col3.metric("Selected Sentences", result["selected_sentence_count"])
+    col4.metric("Summary Ratio", f"{result['summary_ratio']:.0%}")
+
+    with st.expander(f"{method} selected sentences"):
+        for index, sentence in enumerate(result["selected_sentences"], start=1):
+            st.write(f"{index}. {sentence}")
 
 
 def main() -> None:
@@ -82,6 +108,10 @@ def main() -> None:
         )
 
     st.subheader("Summarization")
+    summary_method = st.selectbox(
+        "Summarization method",
+        options=["TF-IDF", "TextRank", "Compare Both"],
+    )
     summary_ratio = st.selectbox(
         "Summary ratio",
         options=[0.10, 0.20, 0.30, 0.40],
@@ -89,29 +119,26 @@ def main() -> None:
         format_func=lambda value: f"{int(value * 100)}%",
     )
 
-    if st.button("Generate TF-IDF Summary"):
-        tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
-
-        st.markdown("### TF-IDF Summary")
-        if tfidf_result["summary"]:
-            st.write(tfidf_result["summary"])
+    if st.button("Generate Summary"):
+        if summary_method == "TF-IDF":
+            render_summary_result(
+                summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
+            )
+        elif summary_method == "TextRank":
+            render_summary_result(
+                summarize_with_textrank(display_text, summary_ratio=summary_ratio)
+            )
         else:
-            st.warning("No summary could be generated from the current text.")
+            tfidf_tab, textrank_tab = st.tabs(["TF-IDF", "TextRank"])
+            with tfidf_tab:
+                render_summary_result(
+                    summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
+                )
+            with textrank_tab:
+                render_summary_result(
+                    summarize_with_textrank(display_text, summary_ratio=summary_ratio)
+                )
 
-        if tfidf_result.get("message"):
-            st.info(str(tfidf_result["message"]))
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Original Sentences", tfidf_result["original_sentence_count"])
-        col2.metric("Valid Sentences", tfidf_result["valid_sentence_count"])
-        col3.metric("Selected Sentences", tfidf_result["selected_sentence_count"])
-        col4.metric("Summary Ratio", f"{tfidf_result['summary_ratio']:.0%}")
-
-        with st.expander("Selected sentences"):
-            for index, sentence in enumerate(tfidf_result["selected_sentences"], start=1):
-                st.write(f"{index}. {sentence}")
-
-    # TODO: Add TextRank summarization controls and output comparison.
     # TODO: Add Transformer-based summarization controls and output comparison.
 
 
