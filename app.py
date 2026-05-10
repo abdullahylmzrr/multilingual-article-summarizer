@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from config.settings import TEXT_PREVIEW_LIMIT
+from modules.evaluation import compare_summaries
 from modules.extractive_engine import summarize_with_textrank, summarize_with_tfidf
 from modules.language_detector import detect_language
 from modules.pdf_reader import PDFReadError, extract_text_from_pdf
@@ -35,6 +36,56 @@ def render_summary_result(result: dict[str, Any]) -> None:
     with st.expander(f"{method} selected sentences"):
         for index, sentence in enumerate(result["selected_sentences"], start=1):
             st.write(f"{index}. {sentence}")
+
+
+def render_comparison_metrics(comparison: dict[str, Any]) -> None:
+    """Render TF-IDF and TextRank comparison metrics."""
+    sentence_overlap = comparison["sentence_overlap"]
+    metrics_table = [
+        {
+            "Metric": "Original word count",
+            "Value": comparison["original_word_count"],
+        },
+        {
+            "Metric": "TF-IDF summary word count",
+            "Value": comparison["tfidf_word_count"],
+        },
+        {
+            "Metric": "TextRank summary word count",
+            "Value": comparison["textrank_word_count"],
+        },
+        {
+            "Metric": "TF-IDF compression ratio",
+            "Value": f"{comparison['tfidf_compression_ratio']:.2%}",
+        },
+        {
+            "Metric": "TextRank compression ratio",
+            "Value": f"{comparison['textrank_compression_ratio']:.2%}",
+        },
+        {
+            "Metric": "Common selected sentences",
+            "Value": sentence_overlap["common_sentence_count"],
+        },
+        {
+            "Metric": "Jaccard similarity",
+            "Value": f"{sentence_overlap['jaccard_similarity']:.2%}",
+        },
+        {
+            "Metric": "Overlap percentage",
+            "Value": f"{sentence_overlap['overlap_percentage']:.2f}%",
+        },
+    ]
+
+    st.markdown("### Comparison Metrics")
+    st.table(metrics_table)
+
+    with st.expander("Common selected sentences"):
+        common_sentences = sentence_overlap["common_sentences"]
+        if common_sentences:
+            for index, sentence in enumerate(common_sentences, start=1):
+                st.write(f"{index}. {sentence}")
+        else:
+            st.write("No common selected sentences.")
 
 
 def main() -> None:
@@ -129,15 +180,20 @@ def main() -> None:
                 summarize_with_textrank(display_text, summary_ratio=summary_ratio)
             )
         else:
+            tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
+            textrank_result = summarize_with_textrank(
+                display_text,
+                summary_ratio=summary_ratio,
+            )
             tfidf_tab, textrank_tab = st.tabs(["TF-IDF", "TextRank"])
             with tfidf_tab:
-                render_summary_result(
-                    summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
-                )
+                render_summary_result(tfidf_result)
             with textrank_tab:
-                render_summary_result(
-                    summarize_with_textrank(display_text, summary_ratio=summary_ratio)
-                )
+                render_summary_result(textrank_result)
+
+            render_comparison_metrics(
+                compare_summaries(tfidf_result, textrank_result, display_text)
+            )
 
     # TODO: Add Transformer-based summarization controls and output comparison.
 
