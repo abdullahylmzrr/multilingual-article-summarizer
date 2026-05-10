@@ -7,8 +7,12 @@ from typing import Any
 import streamlit as st
 
 from config.settings import TEXT_PREVIEW_LIMIT
-from modules.abstractive_engine import summarize_english_transformer
-from modules.evaluation import compare_summaries
+from modules.abstractive_engine import (
+    summarize_english_transformer,
+    summarize_turkish_hybrid_transformer,
+    summarize_with_transformer,
+)
+from modules.evaluation import compare_all_summaries, compare_summaries
 from modules.extractive_engine import summarize_with_textrank, summarize_with_tfidf
 from modules.language_detector import detect_language
 from modules.pdf_reader import PDFReadError, extract_text_from_pdf
@@ -111,26 +115,145 @@ def render_compare_both_results(
         )
 
 
+def render_all_methods_comparison_metrics(comparison: dict[str, Any]) -> None:
+    """Render comparison metrics for all available summarization methods."""
+    sentence_overlap = comparison["sentence_overlap"]
+    metrics_table = [
+        {
+            "Metric": "Original word count",
+            "Value": comparison["original_word_count"],
+        },
+        {
+            "Metric": "TF-IDF summary word count",
+            "Value": comparison["tfidf_word_count"],
+        },
+        {
+            "Metric": "TextRank summary word count",
+            "Value": comparison["textrank_word_count"],
+        },
+        {
+            "Metric": "Transformer summary word count",
+            "Value": comparison["transformer_word_count"],
+        },
+        {
+            "Metric": "TF-IDF compression ratio",
+            "Value": f"{comparison['tfidf_compression_ratio']:.2%}",
+        },
+        {
+            "Metric": "TextRank compression ratio",
+            "Value": f"{comparison['textrank_compression_ratio']:.2%}",
+        },
+        {
+            "Metric": "Transformer compression ratio",
+            "Value": f"{comparison['transformer_compression_ratio']:.2%}",
+        },
+        {
+            "Metric": "TF-IDF selected sentence count",
+            "Value": comparison["tfidf_selected_sentence_count"],
+        },
+        {
+            "Metric": "TextRank selected sentence count",
+            "Value": comparison["textrank_selected_sentence_count"],
+        },
+        {
+            "Metric": "Transformer chunk count",
+            "Value": comparison["transformer_chunk_count"],
+        },
+        {
+            "Metric": "TF-IDF/TextRank common selected sentences",
+            "Value": sentence_overlap["common_sentence_count"],
+        },
+        {
+            "Metric": "TF-IDF/TextRank Jaccard similarity",
+            "Value": f"{sentence_overlap['jaccard_similarity']:.2%}",
+        },
+        {
+            "Metric": "TF-IDF/TextRank overlap percentage",
+            "Value": f"{sentence_overlap['overlap_percentage']:.2f}%",
+        },
+    ]
+
+    st.markdown("### All Methods Comparison Metrics")
+    st.table(metrics_table)
+
+
+def render_compare_all_results(
+    tfidf_result: dict[str, Any],
+    textrank_result: dict[str, Any],
+    transformer_result: dict[str, Any],
+    original_text: str,
+) -> None:
+    """Render all summarization methods and shared comparison metrics."""
+    tfidf_tab, textrank_tab, transformer_tab = st.tabs(
+        ["TF-IDF", "TextRank", "Transformer"]
+    )
+
+    with tfidf_tab:
+        render_summary_result(tfidf_result)
+
+    with textrank_tab:
+        render_summary_result(textrank_result)
+
+    with transformer_tab:
+        render_transformer_result(transformer_result)
+
+    st.divider()
+    render_all_methods_comparison_metrics(
+        compare_all_summaries(
+            tfidf_result,
+            textrank_result,
+            transformer_result,
+            original_text,
+        )
+    )
+
+
+def get_turkish_hybrid_extractive_ratio(summary_ratio: float) -> float:
+    """Map the UI summary ratio to a wider TextRank reduction ratio for Turkish."""
+    return min(0.55, max(0.25, summary_ratio * 1.75))
+
+
 def render_transformer_result(result: dict[str, Any]) -> None:
     """Render one Transformer summarization result in the Streamlit UI."""
     st.markdown("### Transformer Summary")
 
     error_message = result.get("error")
+    warning_message = result.get("warning")
     chunk_errors = result.get("chunk_errors", [])
+    rejected_chunk_summaries = result.get("rejected_chunk_summaries", [])
 
     if error_message:
         st.error(str(error_message))
+    if warning_message:
+        st.warning(str(warning_message))
 
     if result["summary"]:
         st.write(result["summary"])
     elif not error_message:
         st.warning("No summary was generated.")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Model", result["model_name"])
-    col2.metric("Chunks", result["chunk_count"])
-    col3.metric("Input Words", result["input_word_count"])
-    col4.metric("Summary Words", result["summary_word_count"])
+    col2.metric("Detected Language", result["language"])
+    col3.metric("Chunks", result["chunk_count"])
+    col4.metric("Input Words", result["input_word_count"])
+    col5.metric("Summary Words", result["summary_word_count"])
+
+    if (
+        "reduced_input_word_count" in result
+        or "extractive_ratio" in result
+        or result.get("target_summary_ratio") is not None
+    ):
+        extra_col1, extra_col2, extra_col3 = st.columns(3)
+        if "reduced_input_word_count" in result:
+            extra_col1.metric("Reduced Input Words", result["reduced_input_word_count"])
+        if "extractive_ratio" in result:
+            extra_col2.metric("Extractive Ratio", f"{result['extractive_ratio']:.0%}")
+        if result.get("target_summary_ratio") is not None:
+            extra_col3.metric(
+                "Target Summary Ratio",
+                f"{result['target_summary_ratio']:.0%}",
+            )
 
     with st.expander("Chunk summaries"):
         chunk_summaries = result["chunk_summaries"]
@@ -140,17 +263,31 @@ def render_transformer_result(result: dict[str, Any]) -> None:
         else:
             st.write("No chunk summaries available.")
 
-    if error_message:
+    if error_message or warning_message or rejected_chunk_summaries:
         with st.expander("Debug details"):
-            st.write(f"Error: {error_message}")
+            if error_message:
+                st.write(f"Error: {error_message}")
+            if warning_message:
+                st.write(f"Warning: {warning_message}")
             st.write(f"Model: {result['model_name']}")
+            st.write(f"Detected language: {result['language']}")
             st.write(f"Chunk count: {result['chunk_count']}")
             st.write(f"Input word count: {result['input_word_count']}")
+            if "reduced_input_word_count" in result:
+                st.write(f"Reduced input word count: {result['reduced_input_word_count']}")
+            if "extractive_ratio" in result:
+                st.write(f"Extractive ratio: {result['extractive_ratio']:.2f}")
+            if result.get("target_summary_ratio") is not None:
+                st.write(f"Target summary ratio: {result['target_summary_ratio']:.2f}")
             st.write(f"Summary word count: {result['summary_word_count']}")
             if chunk_errors:
                 st.write("Chunk errors:")
                 for error in chunk_errors:
                     st.write(f"- {error}")
+            if rejected_chunk_summaries:
+                st.write("Rejected chunk summaries:")
+                for index, summary in enumerate(rejected_chunk_summaries, start=1):
+                    st.write(f"{index}. {summary}")
 
 
 def main() -> None:
@@ -226,7 +363,7 @@ def main() -> None:
     st.subheader("Summarization")
     summary_method = st.selectbox(
         "Summarization method",
-        options=["TF-IDF", "TextRank", "Compare Both", "Transformer"],
+        options=["TF-IDF", "TextRank", "Transformer", "Compare Both", "Compare All"],
     )
     summary_ratio = st.selectbox(
         "Summary ratio",
@@ -245,16 +382,25 @@ def main() -> None:
                 summarize_with_textrank(display_text, summary_ratio=summary_ratio)
             )
         elif summary_method == "Transformer":
-            if detected_language != "en":
-                st.warning(
-                    "Transformer summarization is currently implemented only for English. "
-                    "Turkish support will be added later."
-                )
-            else:
+            if detected_language == "en":
                 with st.spinner("Loading Transformer model and generating summary..."):
                     transformer_result = summarize_english_transformer(display_text)
                 render_transformer_result(transformer_result)
-        else:
+            elif detected_language == "tr":
+                with st.spinner("Loading Transformer model and generating summary..."):
+                    transformer_result = summarize_turkish_hybrid_transformer(
+                        display_text,
+                        extractive_ratio=get_turkish_hybrid_extractive_ratio(
+                            summary_ratio
+                        ),
+                        summary_ratio=summary_ratio,
+                    )
+                render_transformer_result(transformer_result)
+            else:
+                st.warning(
+                    "Transformer summarization requires detected language to be English or Turkish."
+                )
+        elif summary_method == "Compare Both":
             tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
             textrank_result = summarize_with_textrank(
                 display_text,
@@ -265,8 +411,42 @@ def main() -> None:
                 textrank_result,
                 display_text,
             )
+        else:
+            tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
+            textrank_result = summarize_with_textrank(
+                display_text,
+                summary_ratio=summary_ratio,
+            )
 
-    # TODO: Add Turkish Transformer summarization once the Turkish model flow is ready.
+            if detected_language == "en":
+                with st.spinner("Loading Transformer model and generating summary..."):
+                    transformer_result = summarize_english_transformer(display_text)
+            elif detected_language == "tr":
+                with st.spinner("Loading Transformer model and generating summary..."):
+                    transformer_result = summarize_turkish_hybrid_transformer(
+                        display_text,
+                        extractive_ratio=get_turkish_hybrid_extractive_ratio(
+                            summary_ratio
+                        ),
+                        summary_ratio=summary_ratio,
+                    )
+            else:
+                st.warning(
+                    "Transformer summarization requires detected language to be English or Turkish."
+                )
+                transformer_result = summarize_with_transformer(
+                    display_text,
+                    detected_language,
+                )
+
+            render_compare_all_results(
+                tfidf_result,
+                textrank_result,
+                transformer_result,
+                display_text,
+            )
+
+    # TODO: Add Turkish lemmatization/preprocessing improvements before deeper model tuning.
 
 
 if __name__ == "__main__":

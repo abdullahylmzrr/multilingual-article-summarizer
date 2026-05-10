@@ -97,3 +97,49 @@ def compare_summaries(
             list(textrank_result.get("selected_sentences", [])),
         ),
     }
+
+
+def compare_all_summaries(
+    tfidf_result: dict,
+    textrank_result: dict,
+    transformer_result: dict | None,
+    original_text: str,
+) -> dict[str, object]:
+    """Compare TF-IDF, TextRank, and Transformer summary outputs."""
+    original_word_count = count_words(original_text)
+    tfidf_word_count = count_words(str(tfidf_result.get("summary", "")))
+    textrank_word_count = count_words(str(textrank_result.get("summary", "")))
+
+    safe_transformer_result = transformer_result or {}
+    transformer_word_count = count_words(str(safe_transformer_result.get("summary", "")))
+    sentence_overlap = calculate_sentence_overlap(
+        list(tfidf_result.get("selected_sentences", [])),
+        list(textrank_result.get("selected_sentences", [])),
+    )
+
+    return {
+        "original_word_count": original_word_count,
+        "tfidf_word_count": tfidf_word_count,
+        "textrank_word_count": textrank_word_count,
+        "transformer_word_count": transformer_word_count,
+        "tfidf_compression_ratio": calculate_compression_ratio(
+            original_word_count,
+            tfidf_word_count,
+        ),
+        "textrank_compression_ratio": calculate_compression_ratio(
+            original_word_count,
+            textrank_word_count,
+        ),
+        "transformer_compression_ratio": calculate_compression_ratio(
+            original_word_count,
+            transformer_word_count,
+        ),
+        "tfidf_selected_sentence_count": int(
+            tfidf_result.get("selected_sentence_count", 0)
+        ),
+        "textrank_selected_sentence_count": int(
+            textrank_result.get("selected_sentence_count", 0)
+        ),
+        "transformer_chunk_count": int(safe_transformer_result.get("chunk_count", 0)),
+        "sentence_overlap": sentence_overlap,
+    }

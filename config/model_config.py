@@ -15,5 +15,5 @@ TRANSFORMER_CONFIG: dict[str, int | float | str] = {}
 # Production English summarization model. Smaller models should only be used for local debugging.
 ENGLISH_SUMMARIZATION_MODEL = "facebook/bart-large-cnn"
 
-# TODO: Turkish model will be implemented in a later step.
+# Turkish summarization model for the Transformer-based abstractive layer.
 TURKISH_SUMMARIZATION_MODEL = "mukayese/mt5-base-turkish-summarization"
