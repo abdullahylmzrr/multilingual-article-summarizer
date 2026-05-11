@@ -11,6 +11,9 @@ DOI_PATTERN = re.compile(
     r"\b(?:doi:\s*|https?://(?:dx\.)?doi\.org/)?10\.\d{4,9}/[-._;()/:A-Z0-9]+",
     flags=re.IGNORECASE,
 )
+WORD_FRAGMENT_PATTERN = re.compile(
+    r"([A-Za-zÇĞİÖŞÜçğıöşü]+)-[\t ]*(?:\r?\n|\s)+([A-Za-zÇĞİÖŞÜçğıöşü]+)"
+)
 PAGE_NUMBER_PATTERN = re.compile(
     r"^(?:page|sayfa)?\s*[-–—]?\s*\d+\s*(?:/\s*\d+)?\s*[-–—]?$",
     flags=re.IGNORECASE,
@@ -62,6 +65,32 @@ def remove_emails(text: str) -> str:
 def remove_doi_patterns(text: str) -> str:
     """Remove DOI identifiers and DOI URLs from text."""
     return DOI_PATTERN.sub(" ", text)
+
+
+def fix_pdf_hyphenation(text: str) -> str:
+    """Join words split by PDF line-break or spacing hyphenation.
+
+    Examples:
+        ``ko-\nrunmasına`` -> ``korunmasına``
+        ``ko- Runmasına`` -> ``korunmasına``
+        ``yo- lunda`` -> ``yolunda``
+        ``mevzuat- la`` -> ``mevzuatla``
+    """
+
+    def join_fragments(match: re.Match[str]) -> str:
+        left_fragment = match.group(1)
+        right_fragment = match.group(2)
+
+        if (
+            left_fragment[-1:].islower()
+            and right_fragment[:1].isupper()
+            and any(character.islower() for character in right_fragment[1:])
+        ):
+            right_fragment = f"{right_fragment[0].lower()}{right_fragment[1:]}"
+
+        return f"{left_fragment}{right_fragment}"
+
+    return WORD_FRAGMENT_PATTERN.sub(join_fragments, text)
 
 
 def remove_page_numbers(text: str) -> str:

@@ -67,9 +67,28 @@ def _load_english_summarizer(model_name: str):
 
 
 @lru_cache(maxsize=1)
-def _load_turkish_summarizer(model_name: str):
-    """Load and cache the Hugging Face Turkish summarization pipeline."""
-    return _load_summarizer_pipeline(model_name)
+def load_turkish_seq2seq_model() -> tuple[Any, Any]:
+    """Load and cache the Turkish tokenizer and Seq2Seq model."""
+    try:
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+    except ImportError as error:
+        raise ImportError(
+            "Missing dependency: transformers is not installed. "
+            "Install project requirements with `pip install -r requirements.txt`."
+        ) from error
+
+    tokenizer = AutoTokenizer.from_pretrained(TURKISH_SUMMARIZATION_MODEL)
+    model = AutoModelForSeq2SeqLM.from_pretrained(TURKISH_SUMMARIZATION_MODEL)
+    generation_config = getattr(model, "generation_config", None)
+    if generation_config is not None and hasattr(generation_config, "max_new_tokens"):
+        generation_config.max_new_tokens = None
+
+    model_config = getattr(model, "config", None)
+    if model_config is not None and hasattr(model_config, "max_new_tokens"):
+        model_config.max_new_tokens = None
+
+    model.eval()
+    return tokenizer, model
 
 
 def _summary_lengths_for_chunk(chunk: str) -> tuple[int, int]:
@@ -101,78 +120,74 @@ def _summarize_chunk(summarizer, chunk: str) -> str:
     return str(result[0].get("summary_text", "")).strip()
 
 
-def _summarize_turkish_chunk(summarizer, chunk: str) -> str:
-    """Summarize a Turkish text chunk with stable mT5 generation settings."""
-    result = summarizer(
+def _summarize_turkish_chunk(tokenizer: Any, model: Any, chunk: str) -> str:
+    """Summarize a Turkish text chunk with explicit Seq2Seq generation."""
+    inputs = tokenizer(
         chunk,
-        max_length=140,
-        min_length=35,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512,
+    )
+    model_device = getattr(model, "device", None)
+    if model_device is not None:
+        inputs = {
+            name: tensor.to(model_device)
+            for name, tensor in inputs.items()
+        }
+
+    output_ids = model.generate(
+        **inputs,
+        max_length=150,
+        min_length=40,
         do_sample=False,
         num_beams=4,
         no_repeat_ngram_size=3,
-        repetition_penalty=1.2,
+        repetition_penalty=1.25,
         length_penalty=1.0,
         early_stopping=True,
-        truncation=True,
     )
 
-    if not result:
+    if output_ids is None or len(output_ids) == 0:
         return ""
 
-    return str(result[0].get("summary_text", "")).strip()
+    return tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
 
 
-def _turkish_hybrid_generation_lengths(
+def _summarize_turkish_hybrid_chunk(
+    tokenizer: Any,
+    model: Any,
     chunk: str,
-    summary_ratio: float | None,
-) -> tuple[int, int]:
-    """Choose Turkish hybrid generation lengths from the selected UI ratio."""
-    safe_ratio = 0.20 if summary_ratio is None else min(max(summary_ratio, 0.10), 0.40)
-    chunk_word_count = _count_words(chunk)
-
-    ratio_to_lengths = {
-        0.10: (180, 60),
-        0.20: (220, 80),
-        0.30: (240, 95),
-        0.40: (260, 110),
-    }
-    closest_ratio = min(ratio_to_lengths, key=lambda value: abs(value - safe_ratio))
-    max_length, min_length = ratio_to_lengths[closest_ratio]
-
-    if chunk_word_count < 180:
-        max_length = min(max_length, max(90, int(chunk_word_count * 0.75)))
-        min_length = min(min_length, max(35, int(max_length * 0.45)))
-
-    if min_length >= max_length:
-        min_length = max(35, max_length // 2)
-
-    return max_length, min_length
-
-
-def _summarize_turkish_hybrid_chunk_dynamic(
-    summarizer,
-    chunk: str,
-    summary_ratio: float | None,
 ) -> str:
-    """Summarize a Turkish hybrid chunk with ratio-aware generation settings."""
-    max_length, min_length = _turkish_hybrid_generation_lengths(chunk, summary_ratio)
-    result = summarizer(
+    """Summarize a TextRank-reduced Turkish chunk with explicit generation."""
+    inputs = tokenizer(
         chunk,
-        max_length=max_length,
-        min_length=min_length,
+        return_tensors="pt",
+        truncation=True,
+        max_length=512,
+    )
+    model_device = getattr(model, "device", None)
+    if model_device is not None:
+        inputs = {
+            name: tensor.to(model_device)
+            for name, tensor in inputs.items()
+        }
+
+    output_ids = model.generate(
+        **inputs,
+        max_length=150,
+        min_length=40,
         do_sample=False,
         num_beams=4,
         no_repeat_ngram_size=3,
-        repetition_penalty=1.2,
-        length_penalty=1.1,
+        repetition_penalty=1.25,
+        length_penalty=1.0,
         early_stopping=True,
-        truncation=True,
     )
 
-    if not result:
+    if output_ids is None or len(output_ids) == 0:
         return ""
 
-    return str(result[0].get("summary_text", "")).strip()
+    return tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
 
 
 def _has_excessive_numbered_pattern(summary: str) -> bool:
@@ -280,119 +295,6 @@ def _normalize_sentence_for_comparison(sentence: str) -> str:
     normalized_sentence = sentence.lower()
     normalized_sentence = re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]+", " ", normalized_sentence)
     return re.sub(r"\s+", " ", normalized_sentence).strip()
-
-
-def _starts_like_repeated_sentence(sentence: str, seen_starts: Counter[str]) -> bool:
-    """Return whether a sentence repeats the same opening pattern too often."""
-    words = re.findall(r"\w+", sentence.lower(), flags=re.UNICODE)
-    if len(words) < 8:
-        return False
-
-    start = " ".join(words[:4])
-    if not start:
-        return False
-
-    seen_starts[start] += 1
-    return seen_starts[start] > 2
-
-
-def _is_weak_turkish_summary_sentence(sentence: str) -> bool:
-    """Return whether a Turkish generated sentence is too noisy for final display."""
-    normalized_sentence = " ".join(sentence.split())
-    word_count = _count_words(normalized_sentence)
-
-    if word_count < 7:
-        return True
-    if _is_mostly_numbers_or_punctuation(normalized_sentence):
-        return True
-    if _has_excessive_numbered_pattern(normalized_sentence):
-        return True
-    if _has_too_many_repeated_phrases(normalized_sentence):
-        return True
-
-    words = [
-        word
-        for word in re.findall(r"\w+", normalized_sentence.lower(), flags=re.UNICODE)
-        if len(word) > 4
-    ]
-    repeated_content_words = Counter(words)
-    if words and max(repeated_content_words.values()) >= 4:
-        return True
-
-    weak_patterns = [
-        r"^bu konuda\b",
-        r"\ben yapıcı adımlarda bir tanesi\b",
-        r"\btarih\b.*\btarih alanında\b.*\bgelişmelere neden olmuştur\b",
-        r"\btarih\b.*\btarih öğretimine yüklenen amaçlar\b.*\bgelişmelere neden olmuştur\b",
-        r"\bşöyle sıralamaktadır\b.*\bhedefi vardır\b",
-        r"\bbaşlıklı bildiride\b",
-        r"\bbu kadarını belirtmekle yetinilebilir\b",
-    ]
-    return any(
-        re.search(pattern, normalized_sentence.lower()) for pattern in weak_patterns
-    )
-
-
-def _looks_like_bad_turkish_model_sentence(sentence: str) -> bool:
-    """Return whether a sentence has common non-academic Turkish model artifacts."""
-    normalized_sentence = _normalize_turkish_for_rules(sentence)
-    bad_starts = (
-        "iste ",
-        "iste bu ",
-        "iste tarih",
-        "iste ogrenciler",
-        "iste tarih ogretim",
-        "iste tarih ogrencileri",
-        "işte ",
-        "işte bu ",
-        "işte tarih",
-        "işte öğrenciler",
-        "işte tarih öğretim",
-        "işte tarih öğrencileri",
-    )
-
-    if normalized_sentence.startswith(bad_starts):
-        return True
-    if "bilmeniz gerekenler" in normalized_sentence:
-        return True
-    if "derslere katilmasi gereken amaci" in normalized_sentence:
-        return True
-    if "<br" in normalized_sentence or "/>" in normalized_sentence:
-        return True
-
-    return False
-
-
-def _looks_incomplete_turkish_sentence(sentence: str) -> bool:
-    """Return whether a generated Turkish sentence appears unfinished."""
-    stripped_sentence = sentence.strip()
-    normalized_sentence = _normalize_turkish_for_rules(stripped_sentence)
-
-    if stripped_sentence.endswith(("..", "...")):
-        return True
-    if re.search(r"\.{2,}\s*$", stripped_sentence):
-        return True
-
-    weak_endings = (
-        " ve",
-        " ile",
-        " icin",
-        " için",
-        " olarak",
-        " gibi",
-        " dek",
-        " gun",
-        " gün",
-        " günü",
-        " yolu",
-        " yayinda",
-        " yayında",
-        " konusunda",
-    )
-    if normalized_sentence.endswith(weak_endings):
-        return True
-
-    return False
 
 
 def _polish_turkish_sentence(sentence: str) -> str:
@@ -557,22 +459,6 @@ def _repair_generated_turkish_text(text: str) -> str:
     repaired_text = re.sub(r"\s+([,.!?;:])", r"\1", repaired_text)
     repaired_text = re.sub(r"([.!?]){2,}", r"\1", repaired_text)
     return re.sub(r"\s+", " ", repaired_text).strip()
-
-
-def _remove_orphan_context_sentences(sentences: list[str]) -> list[str]:
-    """Remove leading sentences that depend on missing previous context."""
-    contextual_openers = (
-        "Bu bakış",
-        "Bu durum",
-        "Bu sınırlı incelemede",
-        "Bu konuda",
-    )
-    trimmed_sentences = list(sentences)
-
-    while trimmed_sentences and trimmed_sentences[0].startswith(contextual_openers):
-        trimmed_sentences.pop(0)
-
-    return trimmed_sentences
 
 
 def postprocess_turkish_transformer_summary(
@@ -760,7 +646,7 @@ def summarize_turkish_transformer(
         )
 
     try:
-        summarizer = _load_turkish_summarizer(TURKISH_SUMMARIZATION_MODEL)
+        tokenizer, model = load_turkish_seq2seq_model()
     except ImportError as error:
         return _empty_transformer_response(
             model_name=TURKISH_SUMMARIZATION_MODEL,
@@ -783,7 +669,7 @@ def summarize_turkish_transformer(
 
     for chunk_index, chunk in enumerate(chunks, start=1):
         try:
-            chunk_summary = _summarize_turkish_chunk(summarizer, chunk)
+            chunk_summary = _summarize_turkish_chunk(tokenizer, model, chunk)
         except Exception as error:
             chunk_errors.append(f"Chunk {chunk_index}: {error}")
             continue
@@ -838,9 +724,8 @@ def summarize_turkish_transformer(
 
 def summarize_turkish_hybrid_transformer(
     text: str,
-    extractive_ratio: float = 0.35,
+    extractive_ratio: float = 0.30,
     max_words_per_chunk: int = 300,
-    summary_ratio: float | None = None,
 ) -> dict[str, Any]:
     """Summarize Turkish text with TextRank reduction followed by Transformer.
 
@@ -848,7 +733,6 @@ def summarize_turkish_hybrid_transformer(
         text: Cleaned Turkish article text.
         extractive_ratio: Fraction of valid TextRank sentences used as Transformer input.
         max_words_per_chunk: Maximum words per reduced chunk.
-        summary_ratio: UI summary ratio used to choose generation length.
 
     Returns:
         Hybrid Transformer summary result with reduction and chunk metadata.
@@ -865,7 +749,6 @@ def summarize_turkish_hybrid_transformer(
         response["method"] = "Hybrid Transformer"
         response["reduced_input_word_count"] = 0
         response["extractive_ratio"] = extractive_ratio
-        response["target_summary_ratio"] = summary_ratio
         return response
 
     textrank_result = summarize_with_textrank(
@@ -899,12 +782,11 @@ def summarize_turkish_hybrid_transformer(
         response["method"] = "Hybrid Transformer"
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
-        response["target_summary_ratio"] = summary_ratio
         response["warning"] = warning
         return response
 
     try:
-        summarizer = _load_turkish_summarizer(TURKISH_SUMMARIZATION_MODEL)
+        tokenizer, model = load_turkish_seq2seq_model()
     except ImportError as error:
         response = _empty_transformer_response(
             model_name=TURKISH_SUMMARIZATION_MODEL,
@@ -915,7 +797,6 @@ def summarize_turkish_hybrid_transformer(
         response["method"] = "Hybrid Transformer"
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
-        response["target_summary_ratio"] = summary_ratio
         response["warning"] = warning
         return response
     except Exception as error:
@@ -928,7 +809,6 @@ def summarize_turkish_hybrid_transformer(
         response["method"] = "Hybrid Transformer"
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
-        response["target_summary_ratio"] = summary_ratio
         response["warning"] = warning
         return response
 
@@ -939,10 +819,10 @@ def summarize_turkish_hybrid_transformer(
 
     for chunk_index, chunk in enumerate(chunks, start=1):
         try:
-            chunk_summary = _summarize_turkish_hybrid_chunk_dynamic(
-                summarizer,
+            chunk_summary = _summarize_turkish_hybrid_chunk(
+                tokenizer,
+                model,
                 chunk,
-                summary_ratio,
             )
         except Exception as error:
             chunk_errors.append(f"Chunk {chunk_index}: {error}")
@@ -973,7 +853,6 @@ def summarize_turkish_hybrid_transformer(
         response["chunk_count"] = len(chunks)
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
-        response["target_summary_ratio"] = summary_ratio
         response["warning"] = warning
         return response
 
@@ -990,10 +869,7 @@ def summarize_turkish_hybrid_transformer(
             "showing the least bad available chunk summary."
         )
 
-    target_min_words = _target_turkish_summary_min_words(
-        input_word_count,
-        summary_ratio,
-    )
+    target_min_words = _target_turkish_summary_min_words(input_word_count, 0.20)
     if target_min_words and _count_words(final_summary) < target_min_words:
         fallback_summary = postprocess_turkish_transformer_summary(
             " ".join(generated_chunk_summaries),
@@ -1019,7 +895,6 @@ def summarize_turkish_hybrid_transformer(
         "reduced_input_word_count": reduced_input_word_count,
         "summary_word_count": _count_words(final_summary),
         "extractive_ratio": extractive_ratio,
-        "target_summary_ratio": summary_ratio,
         "error": None,
         "warning": warning,
         "chunk_errors": chunk_errors,

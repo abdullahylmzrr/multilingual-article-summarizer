@@ -208,11 +208,6 @@ def render_compare_all_results(
     )
 
 
-def get_turkish_hybrid_extractive_ratio(summary_ratio: float) -> float:
-    """Map the UI summary ratio to a wider TextRank reduction ratio for Turkish."""
-    return min(0.55, max(0.25, summary_ratio * 1.75))
-
-
 def render_transformer_result(result: dict[str, Any]) -> None:
     """Render one Transformer summarization result in the Streamlit UI."""
     st.markdown("### Transformer Summary")
@@ -242,18 +237,12 @@ def render_transformer_result(result: dict[str, Any]) -> None:
     if (
         "reduced_input_word_count" in result
         or "extractive_ratio" in result
-        or result.get("target_summary_ratio") is not None
     ):
-        extra_col1, extra_col2, extra_col3 = st.columns(3)
+        extra_col1, extra_col2 = st.columns(2)
         if "reduced_input_word_count" in result:
             extra_col1.metric("Reduced Input Words", result["reduced_input_word_count"])
         if "extractive_ratio" in result:
             extra_col2.metric("Extractive Ratio", f"{result['extractive_ratio']:.0%}")
-        if result.get("target_summary_ratio") is not None:
-            extra_col3.metric(
-                "Target Summary Ratio",
-                f"{result['target_summary_ratio']:.0%}",
-            )
 
     with st.expander("Chunk summaries"):
         chunk_summaries = result["chunk_summaries"]
@@ -277,8 +266,6 @@ def render_transformer_result(result: dict[str, Any]) -> None:
                 st.write(f"Reduced input word count: {result['reduced_input_word_count']}")
             if "extractive_ratio" in result:
                 st.write(f"Extractive ratio: {result['extractive_ratio']:.2f}")
-            if result.get("target_summary_ratio") is not None:
-                st.write(f"Target summary ratio: {result['target_summary_ratio']:.2f}")
             st.write(f"Summary word count: {result['summary_word_count']}")
             if chunk_errors:
                 st.write("Chunk errors:")
@@ -388,13 +375,7 @@ def main() -> None:
                 render_transformer_result(transformer_result)
             elif detected_language == "tr":
                 with st.spinner("Loading Transformer model and generating summary..."):
-                    transformer_result = summarize_turkish_hybrid_transformer(
-                        display_text,
-                        extractive_ratio=get_turkish_hybrid_extractive_ratio(
-                            summary_ratio
-                        ),
-                        summary_ratio=summary_ratio,
-                    )
+                    transformer_result = summarize_turkish_hybrid_transformer(display_text)
                 render_transformer_result(transformer_result)
             else:
                 st.warning(
@@ -423,13 +404,7 @@ def main() -> None:
                     transformer_result = summarize_english_transformer(display_text)
             elif detected_language == "tr":
                 with st.spinner("Loading Transformer model and generating summary..."):
-                    transformer_result = summarize_turkish_hybrid_transformer(
-                        display_text,
-                        extractive_ratio=get_turkish_hybrid_extractive_ratio(
-                            summary_ratio
-                        ),
-                        summary_ratio=summary_ratio,
-                    )
+                    transformer_result = summarize_turkish_hybrid_transformer(display_text)
             else:
                 st.warning(
                     "Transformer summarization requires detected language to be English or Turkish."

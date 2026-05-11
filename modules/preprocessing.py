@@ -12,6 +12,7 @@ import utils.text_cleaner as text_cleaner
 TOKEN_CLEANUP_PATTERN = re.compile(r"[^\w\sçğıöşüÇĞİÖŞÜ]", flags=re.UNICODE)
 REQUIRED_TEXT_CLEANER_FUNCTIONS = {
     "clean_lines",
+    "fix_pdf_hyphenation",
     "remove_academic_pdf_noise",
     "remove_doi_patterns",
     "remove_emails",
@@ -42,7 +43,8 @@ def _count_words(text: str) -> int:
 def _build_display_text(raw_text: str, language: str) -> str:
     """Create readable cleaned text for UI display."""
     cleaner = _get_text_cleaner_module()
-    cleaned_text = cleaner.remove_urls(raw_text)
+    cleaned_text = cleaner.fix_pdf_hyphenation(raw_text)
+    cleaned_text = cleaner.remove_urls(cleaned_text)
     cleaned_text = cleaner.remove_emails(cleaned_text)
     cleaned_text = cleaner.remove_doi_patterns(cleaned_text)
     cleaned_text = cleaner.remove_references_section(cleaned_text, language)
