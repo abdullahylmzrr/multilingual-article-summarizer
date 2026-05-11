@@ -11,6 +11,7 @@ from typing import Any
 from config.model_config import ENGLISH_SUMMARIZATION_MODEL, TURKISH_SUMMARIZATION_MODEL
 from modules.extractive_engine import summarize_with_textrank
 from modules.chunking import chunk_text_by_words
+from utils.stopwords import get_stopwords
 
 
 def _count_words(text: str) -> int:
@@ -39,6 +40,7 @@ def _empty_transformer_response(
         "warning": None,
         "chunk_errors": chunk_errors or [],
         "rejected_chunk_summaries": [],
+        "source_filtered_sentences": [],
     }
     return response
 
@@ -297,6 +299,73 @@ def _normalize_sentence_for_comparison(sentence: str) -> str:
     return re.sub(r"\s+", " ", normalized_sentence).strip()
 
 
+def _normalize_token(token: str, language: str) -> str:
+    """Normalize one token with small language-aware handling."""
+    normalized_token = token.lower()
+    if language.lower().strip() == "tr":
+        normalized_token = normalized_token.replace("i̇", "i")
+
+    return normalized_token
+
+
+def _important_tokens(text: str, language: str) -> list[str]:
+    """Extract simple content-bearing tokens for source overlap checks."""
+    normalized_language = language.lower().strip()
+    stopwords = {
+        _normalize_token(stopword, normalized_language)
+        for stopword in get_stopwords(normalized_language)
+    }
+    raw_tokens = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", text)
+    tokens = []
+
+    for raw_token in raw_tokens:
+        token = _normalize_token(raw_token, normalized_language)
+        if len(token) < 3:
+            continue
+        if not token.isalpha():
+            continue
+        if token in stopwords:
+            continue
+
+        tokens.append(token)
+
+    return tokens
+
+
+def _deduplicate_sentences(sentences: list[str]) -> list[str]:
+    """Remove duplicate sentences while preserving their original order."""
+    deduplicated_sentences = []
+    seen_sentences = set()
+
+    for sentence in sentences:
+        comparison_key = _normalize_sentence_for_comparison(sentence)
+        if not comparison_key or comparison_key in seen_sentences:
+            continue
+
+        seen_sentences.add(comparison_key)
+        deduplicated_sentences.append(sentence)
+
+    return deduplicated_sentences
+
+
+def _postprocess_english_transformer_summary(summary: str) -> str:
+    """Lightly clean English Transformer summaries without aggressive filtering."""
+    normalized_summary = re.sub(r"\s+", " ", summary).strip()
+    if not normalized_summary:
+        return ""
+
+    sentences = [
+        re.sub(r"\s+", " ", sentence).strip()
+        for sentence in _split_transformer_summary_sentences(normalized_summary)
+    ]
+    sentences = [sentence for sentence in sentences if sentence]
+
+    if not sentences:
+        return normalized_summary
+
+    return " ".join(_deduplicate_sentences(sentences))
+
+
 def _polish_turkish_sentence(sentence: str) -> str:
     """Apply small display-level fixes to a kept Turkish sentence."""
     polished_sentence = re.sub(r"\s+", " ", sentence).strip()
@@ -338,7 +407,11 @@ def _is_hard_bad_turkish_sentence(sentence: str) -> bool:
         return True
     if normalized_sentence in {"iş.", "is.", "işte.", "/>"}:
         return True
-    if "/>" in stripped_sentence or "<br" in normalized_sentence or "</" in normalized_sentence:
+    if (
+        "/>" in stripped_sentence
+        or "<br" in normalized_sentence
+        or "</" in normalized_sentence
+    ):
         return True
     if "fifty shades" in normalized_sentence:
         return True
@@ -349,6 +422,13 @@ def _is_hard_bad_turkish_sentence(sentence: str) -> bool:
     if "bilmeniz gerekenler" in normalized_sentence:
         return True
     if "işte detaylar" in normalized_sentence or "iste detaylar" in normalized_sentence:
+        return True
+    if "ve kapsamında" in normalized_sentence:
+        return True
+    if (
+        "ve tarafından desteklenen erzurum, erzincan ve kapsamında"
+        in normalized_sentence
+    ):
         return True
     if normalized_sentence.endswith((" gün.", " yayında.", " yolu.")):
         return True
@@ -384,18 +464,7 @@ def _is_obvious_bad_turkish_sentence(sentence: str) -> bool:
 
 def _deduplicate_turkish_sentences(sentences: list[str]) -> list[str]:
     """Remove duplicate Turkish summary sentences while preserving order."""
-    deduplicated_sentences = []
-    seen_sentences = set()
-
-    for sentence in sentences:
-        comparison_key = _normalize_sentence_for_comparison(sentence)
-        if not comparison_key or comparison_key in seen_sentences:
-            continue
-
-        seen_sentences.add(comparison_key)
-        deduplicated_sentences.append(sentence)
-
-    return deduplicated_sentences
+    return _deduplicate_sentences(sentences)
 
 
 def _target_turkish_summary_min_words(
@@ -408,31 +477,6 @@ def _target_turkish_summary_min_words(
 
     target_word_count = int(input_word_count * summary_ratio * 0.15)
     return min(260, max(80, target_word_count))
-
-
-def _format_summary_paragraphs(sentences: list[str], max_paragraphs: int = 3) -> str:
-    """Group final Turkish summary sentences into a few readable paragraphs."""
-    if not sentences:
-        return ""
-
-    if len(sentences) <= max_paragraphs:
-        return "\n\n".join(sentences)
-
-    paragraph_count = min(max_paragraphs, max(2, len(sentences) // 3))
-    sentences_per_paragraph = max(
-        1,
-        (len(sentences) + paragraph_count - 1) // paragraph_count,
-    )
-    paragraphs = []
-
-    for start_index in range(0, len(sentences), sentences_per_paragraph):
-        paragraph = " ".join(
-            sentences[start_index : start_index + sentences_per_paragraph]
-        )
-        if paragraph:
-            paragraphs.append(paragraph)
-
-    return "\n\n".join(paragraphs)
 
 
 def _repair_generated_turkish_text(text: str) -> str:
@@ -482,7 +526,9 @@ def postprocess_turkish_transformer_summary(
         if not sentence:
             continue
 
-        if _count_words(sentence) < 4:
+        if _count_words(sentence) < 6:
+            continue
+        if _is_mostly_numbers_or_punctuation(sentence):
             continue
         if _is_hard_bad_turkish_sentence(sentence):
             continue
@@ -500,7 +546,69 @@ def postprocess_turkish_transformer_summary(
     if not cleaned_sentences:
         return normalized_summary
 
-    return _format_summary_paragraphs(cleaned_sentences)
+    return " ".join(cleaned_sentences)
+
+
+def postprocess_transformer_summary(summary: str, language: str) -> str:
+    """Post-process Transformer summaries using language-specific light rules."""
+    normalized_language = language.lower().strip()
+
+    if normalized_language == "tr":
+        return postprocess_turkish_transformer_summary(summary)
+    if normalized_language == "en":
+        return _postprocess_english_transformer_summary(summary)
+
+    return re.sub(r"\s+", " ", summary).strip()
+
+
+def _filter_summary_sentences_by_source_overlap(
+    summary: str,
+    source_text: str,
+    language: str,
+    min_overlap_ratio: float = 0.30,
+) -> tuple[str, list[str]]:
+    """Return source-grounded summary text and removed low-overlap sentences."""
+    source_tokens = set(_important_tokens(source_text, language))
+    kept_sentences = []
+    removed_sentences = []
+
+    for sentence in _split_transformer_summary_sentences(summary):
+        cleaned_sentence = re.sub(r"\s+", " ", sentence).strip()
+        if not cleaned_sentence:
+            continue
+
+        sentence_tokens = _important_tokens(cleaned_sentence, language)
+        if len(sentence_tokens) < 5:
+            kept_sentences.append(cleaned_sentence)
+            continue
+
+        overlap_count = sum(token in source_tokens for token in sentence_tokens)
+        overlap_ratio = overlap_count / len(sentence_tokens)
+
+        if overlap_ratio < min_overlap_ratio:
+            removed_sentences.append(cleaned_sentence)
+            continue
+
+        kept_sentences.append(cleaned_sentence)
+
+    return " ".join(kept_sentences), removed_sentences
+
+
+def filter_summary_sentences_by_source_overlap(
+    summary: str,
+    source_text: str,
+    language: str,
+    min_overlap_ratio: float = 0.30,
+) -> str:
+    """Filter low source-overlap summary sentences while preserving order."""
+    filtered_summary, _ = _filter_summary_sentences_by_source_overlap(
+        summary,
+        source_text,
+        language,
+        min_overlap_ratio,
+    )
+
+    return filtered_summary
 
 
 def summarize_english_transformer(
@@ -590,6 +698,8 @@ def summarize_english_transformer(
             chunk_errors.append(f"Final summary pass: {error}")
             final_summary = combined_summary
 
+    final_summary = postprocess_transformer_summary(final_summary, "en")
+
     response = {
         "method": "Transformer",
         "language": "en",
@@ -677,7 +787,7 @@ def summarize_turkish_transformer(
         if not chunk_summary:
             continue
 
-        chunk_summary = postprocess_turkish_transformer_summary(chunk_summary)
+        chunk_summary = postprocess_transformer_summary(chunk_summary, "tr")
         if not chunk_summary:
             continue
 
@@ -698,9 +808,15 @@ def summarize_turkish_transformer(
 
     warning = None
     if chunk_summaries:
-        final_summary = " ".join(chunk_summaries).strip()
+        final_summary = postprocess_transformer_summary(
+            " ".join(chunk_summaries),
+            "tr",
+        )
     else:
-        final_summary = max(generated_chunk_summaries, key=_count_words).strip()
+        final_summary = postprocess_transformer_summary(
+            max(generated_chunk_summaries, key=_count_words),
+            "tr",
+        )
         warning = (
             "All Turkish chunk summaries were rejected by the quality filter; "
             "showing the least bad available chunk summary."
@@ -749,6 +865,7 @@ def summarize_turkish_hybrid_transformer(
         response["method"] = "Hybrid Transformer"
         response["reduced_input_word_count"] = 0
         response["extractive_ratio"] = extractive_ratio
+        response["source_filtered_sentences"] = []
         return response
 
     textrank_result = summarize_with_textrank(
@@ -783,6 +900,7 @@ def summarize_turkish_hybrid_transformer(
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
         response["warning"] = warning
+        response["source_filtered_sentences"] = []
         return response
 
     try:
@@ -798,6 +916,7 @@ def summarize_turkish_hybrid_transformer(
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
         response["warning"] = warning
+        response["source_filtered_sentences"] = []
         return response
     except Exception as error:
         response = _empty_transformer_response(
@@ -810,6 +929,7 @@ def summarize_turkish_hybrid_transformer(
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
         response["warning"] = warning
+        response["source_filtered_sentences"] = []
         return response
 
     chunk_summaries = []
@@ -831,7 +951,7 @@ def summarize_turkish_hybrid_transformer(
         if not chunk_summary:
             continue
 
-        chunk_summary = postprocess_turkish_transformer_summary(chunk_summary)
+        chunk_summary = postprocess_transformer_summary(chunk_summary, "tr")
         if not chunk_summary:
             continue
 
@@ -854,15 +974,18 @@ def summarize_turkish_hybrid_transformer(
         response["reduced_input_word_count"] = reduced_input_word_count
         response["extractive_ratio"] = extractive_ratio
         response["warning"] = warning
+        response["source_filtered_sentences"] = []
         return response
 
     if chunk_summaries:
-        final_summary = postprocess_turkish_transformer_summary(
-            " ".join(chunk_summaries)
+        final_summary = postprocess_transformer_summary(
+            " ".join(chunk_summaries),
+            "tr",
         )
     else:
-        final_summary = postprocess_turkish_transformer_summary(
-            max(generated_chunk_summaries, key=_count_words)
+        final_summary = postprocess_transformer_summary(
+            max(generated_chunk_summaries, key=_count_words),
+            "tr",
         )
         warning = (
             "All Turkish hybrid chunk summaries were rejected by the quality filter; "
@@ -871,9 +994,9 @@ def summarize_turkish_hybrid_transformer(
 
     target_min_words = _target_turkish_summary_min_words(input_word_count, 0.20)
     if target_min_words and _count_words(final_summary) < target_min_words:
-        fallback_summary = postprocess_turkish_transformer_summary(
+        fallback_summary = postprocess_transformer_summary(
             " ".join(generated_chunk_summaries),
-            min_sentences=5,
+            "tr",
         )
         if _count_words(fallback_summary) > _count_words(final_summary):
             final_summary = fallback_summary
@@ -883,6 +1006,21 @@ def summarize_turkish_hybrid_transformer(
             )
             warning = f"{warning} {fallback_warning}" if warning else fallback_warning
 
+    filtered_summary, source_filtered_sentences = (
+        _filter_summary_sentences_by_source_overlap(
+            final_summary,
+            reduced_text,
+            "tr",
+            min_overlap_ratio=0.30,
+        )
+    )
+    if filtered_summary != final_summary:
+        final_summary = postprocess_transformer_summary(filtered_summary, "tr")
+
+    if not final_summary and source_filtered_sentences:
+        warning_text = "Source-overlap filtering removed every final sentence."
+        warning = f"{warning} {warning_text}" if warning else warning_text
+
     return {
         "method": "Hybrid Transformer",
         "language": "tr",
@@ -891,6 +1029,7 @@ def summarize_turkish_hybrid_transformer(
         "chunk_count": len(chunks),
         "chunk_summaries": chunk_summaries,
         "rejected_chunk_summaries": rejected_chunk_summaries,
+        "source_filtered_sentences": source_filtered_sentences,
         "input_word_count": input_word_count,
         "reduced_input_word_count": reduced_input_word_count,
         "summary_word_count": _count_words(final_summary),
@@ -921,4 +1060,5 @@ def summarize_with_transformer(text: str, language: str) -> dict[str, Any]:
         "warning": None,
         "chunk_errors": [],
         "rejected_chunk_summaries": [],
+        "source_filtered_sentences": [],
     }
