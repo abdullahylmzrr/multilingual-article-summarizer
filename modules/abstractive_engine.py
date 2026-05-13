@@ -8,10 +8,14 @@ from collections import Counter
 from functools import lru_cache
 from typing import Any
 
-from config.model_config import ENGLISH_SUMMARIZATION_MODEL, TURKISH_SUMMARIZATION_MODEL
-from modules.extractive_engine import summarize_with_textrank
+from config.model_config import (
+    ENGLISH_SUMMARIZATION_MODEL,
+    TURKISH_MT5_SUMMARIZATION_MODEL,
+    TURKISH_SUMMARIZATION_MODEL,
+    TURKISH_VBART_XLARGE_SUMMARIZATION_MODEL,
+)
+from modules.extractive_engine import summarize_with_textrank, summarize_with_tfidf
 from modules.chunking import chunk_text_by_words
-from utils.stopwords import get_stopwords
 
 
 def _count_words(text: str) -> int:
@@ -68,9 +72,58 @@ def _load_english_summarizer(model_name: str):
     return _load_summarizer_pipeline(model_name)
 
 
-@lru_cache(maxsize=1)
-def load_turkish_seq2seq_model() -> tuple[Any, Any]:
-    """Load and cache the Turkish tokenizer and Seq2Seq model."""
+TURKISH_MODEL_NAMES = {
+    "mt5": TURKISH_MT5_SUMMARIZATION_MODEL,
+    "vbart_xlarge": TURKISH_VBART_XLARGE_SUMMARIZATION_MODEL,
+}
+
+
+def _normalize_turkish_model_key(turkish_model_key: str) -> str:
+    """Normalize selectable Turkish Transformer model keys."""
+    normalized_key = turkish_model_key.strip().lower().replace("-", "_")
+    if normalized_key in {"vbart", "vbart_xlarge", "vbartxlarge"}:
+        return "vbart_xlarge"
+
+    return "mt5"
+
+
+def _turkish_model_name(turkish_model_key: str) -> str:
+    """Return the Hugging Face model name for a Turkish model key."""
+    return TURKISH_MODEL_NAMES[_normalize_turkish_model_key(turkish_model_key)]
+
+
+def _turkish_generation_parameters(turkish_model_key: str) -> dict[str, int | float | bool]:
+    """Return deterministic generation parameters for the selected Turkish model."""
+    normalized_key = _normalize_turkish_model_key(turkish_model_key)
+    if normalized_key == "vbart_xlarge":
+        return {
+            "max_length": 180,
+            "min_length": 50,
+            "do_sample": False,
+            "num_beams": 4,
+            "no_repeat_ngram_size": 3,
+            "repetition_penalty": 1.15,
+            "length_penalty": 1.0,
+            "early_stopping": True,
+        }
+
+    return {
+        "max_length": 150,
+        "min_length": 40,
+        "do_sample": False,
+        "num_beams": 4,
+        "no_repeat_ngram_size": 3,
+        "repetition_penalty": 1.25,
+        "length_penalty": 1.0,
+        "early_stopping": True,
+    }
+
+
+@lru_cache(maxsize=2)
+def load_turkish_seq2seq_model(
+    model_name: str = TURKISH_MT5_SUMMARIZATION_MODEL,
+) -> tuple[Any, Any]:
+    """Load and cache one Turkish tokenizer and Seq2Seq model lazily."""
     try:
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
     except ImportError as error:
@@ -79,8 +132,8 @@ def load_turkish_seq2seq_model() -> tuple[Any, Any]:
             "Install project requirements with `pip install -r requirements.txt`."
         ) from error
 
-    tokenizer = AutoTokenizer.from_pretrained(TURKISH_SUMMARIZATION_MODEL)
-    model = AutoModelForSeq2SeqLM.from_pretrained(TURKISH_SUMMARIZATION_MODEL)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
     generation_config = getattr(model, "generation_config", None)
     if generation_config is not None and hasattr(generation_config, "max_new_tokens"):
         generation_config.max_new_tokens = None
@@ -122,7 +175,12 @@ def _summarize_chunk(summarizer, chunk: str) -> str:
     return str(result[0].get("summary_text", "")).strip()
 
 
-def _summarize_turkish_chunk(tokenizer: Any, model: Any, chunk: str) -> str:
+def _summarize_turkish_chunk(
+    tokenizer: Any,
+    model: Any,
+    chunk: str,
+    turkish_model_key: str = "mt5",
+) -> str:
     """Summarize a Turkish text chunk with explicit Seq2Seq generation."""
     inputs = tokenizer(
         chunk,
@@ -130,6 +188,7 @@ def _summarize_turkish_chunk(tokenizer: Any, model: Any, chunk: str) -> str:
         truncation=True,
         max_length=512,
     )
+    inputs.pop("token_type_ids", None)
     model_device = getattr(model, "device", None)
     if model_device is not None:
         inputs = {
@@ -139,14 +198,7 @@ def _summarize_turkish_chunk(tokenizer: Any, model: Any, chunk: str) -> str:
 
     output_ids = model.generate(
         **inputs,
-        max_length=150,
-        min_length=40,
-        do_sample=False,
-        num_beams=4,
-        no_repeat_ngram_size=3,
-        repetition_penalty=1.25,
-        length_penalty=1.0,
-        early_stopping=True,
+        **_turkish_generation_parameters(turkish_model_key),
     )
 
     if output_ids is None or len(output_ids) == 0:
@@ -159,6 +211,7 @@ def _summarize_turkish_hybrid_chunk(
     tokenizer: Any,
     model: Any,
     chunk: str,
+    turkish_model_key: str = "mt5",
 ) -> str:
     """Summarize a TextRank-reduced Turkish chunk with explicit generation."""
     inputs = tokenizer(
@@ -167,6 +220,7 @@ def _summarize_turkish_hybrid_chunk(
         truncation=True,
         max_length=512,
     )
+    inputs.pop("token_type_ids", None)
     model_device = getattr(model, "device", None)
     if model_device is not None:
         inputs = {
@@ -176,14 +230,7 @@ def _summarize_turkish_hybrid_chunk(
 
     output_ids = model.generate(
         **inputs,
-        max_length=150,
-        min_length=40,
-        do_sample=False,
-        num_beams=4,
-        no_repeat_ngram_size=3,
-        repetition_penalty=1.25,
-        length_penalty=1.0,
-        early_stopping=True,
+        **_turkish_generation_parameters(turkish_model_key),
     )
 
     if output_ids is None or len(output_ids) == 0:
@@ -282,14 +329,26 @@ def _remove_citations(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned_text).strip()
 
 
+NUMERIC_DOT_PLACEHOLDER = "__NUMERIC_DOT__"
+
+
 def _split_transformer_summary_sentences(text: str) -> list[str]:
     """Split a generated summary into display-ready sentence candidates."""
     normalized_text = re.sub(r"\s+", " ", text).strip()
     if not normalized_text:
         return []
 
-    sentence_matches = re.findall(r"[^.!?]+(?:[.!?]+|$)", normalized_text)
-    return [sentence.strip() for sentence in sentence_matches if sentence.strip()]
+    protected_text = re.sub(
+        r"(?<=\d)\.(?=\d)",
+        NUMERIC_DOT_PLACEHOLDER,
+        normalized_text,
+    )
+    sentence_matches = re.findall(r"[^.!?]+(?:[.!?]+|$)", protected_text)
+    return [
+        sentence.replace(NUMERIC_DOT_PLACEHOLDER, ".").strip()
+        for sentence in sentence_matches
+        if sentence.strip()
+    ]
 
 
 def _normalize_sentence_for_comparison(sentence: str) -> str:
@@ -297,39 +356,6 @@ def _normalize_sentence_for_comparison(sentence: str) -> str:
     normalized_sentence = sentence.lower()
     normalized_sentence = re.sub(r"[^\wçğıöşüÇĞİÖŞÜ]+", " ", normalized_sentence)
     return re.sub(r"\s+", " ", normalized_sentence).strip()
-
-
-def _normalize_token(token: str, language: str) -> str:
-    """Normalize one token with small language-aware handling."""
-    normalized_token = token.lower()
-    if language.lower().strip() == "tr":
-        normalized_token = normalized_token.replace("i̇", "i")
-
-    return normalized_token
-
-
-def _important_tokens(text: str, language: str) -> list[str]:
-    """Extract simple content-bearing tokens for source overlap checks."""
-    normalized_language = language.lower().strip()
-    stopwords = {
-        _normalize_token(stopword, normalized_language)
-        for stopword in get_stopwords(normalized_language)
-    }
-    raw_tokens = re.findall(r"[A-Za-zÇĞİÖŞÜçğıöşü]+", text)
-    tokens = []
-
-    for raw_token in raw_tokens:
-        token = _normalize_token(raw_token, normalized_language)
-        if len(token) < 3:
-            continue
-        if not token.isalpha():
-            continue
-        if token in stopwords:
-            continue
-
-        tokens.append(token)
-
-    return tokens
 
 
 def _deduplicate_sentences(sentences: list[str]) -> list[str]:
@@ -413,8 +439,6 @@ def _is_hard_bad_turkish_sentence(sentence: str) -> bool:
         or "</" in normalized_sentence
     ):
         return True
-    if "fifty shades" in normalized_sentence:
-        return True
     if "http://" in normalized_sentence or "https://" in normalized_sentence:
         return True
     if "www." in normalized_sentence or "@" in normalized_sentence:
@@ -422,15 +446,6 @@ def _is_hard_bad_turkish_sentence(sentence: str) -> bool:
     if "bilmeniz gerekenler" in normalized_sentence:
         return True
     if "işte detaylar" in normalized_sentence or "iste detaylar" in normalized_sentence:
-        return True
-    if "ve kapsamında" in normalized_sentence:
-        return True
-    if (
-        "ve tarafından desteklenen erzurum, erzincan ve kapsamında"
-        in normalized_sentence
-    ):
-        return True
-    if normalized_sentence.endswith((" gün.", " yayında.", " yolu.")):
         return True
 
     return False
@@ -445,18 +460,7 @@ def _is_obvious_bad_turkish_sentence(sentence: str) -> bool:
         return True
     if word_count < 4:
         return True
-    if normalized_sentence.startswith(("işte ", "iste ")) and word_count <= 10:
-        return True
-    if normalized_sentence.startswith(("işte ", "iste ")) and any(
-        phrase in normalized_sentence
-        for phrase in (
-            "genel bir değerlendirme",
-            "maddeler arasında",
-            "tarih müfredatı",
-            "geliştirilen bu yöntem",
-            "tarih öğretim programları",
-        )
-    ):
+    if normalized_sentence.startswith(("işte ", "iste ")) and word_count <= 12:
         return True
 
     return False
@@ -479,6 +483,25 @@ def _target_turkish_summary_min_words(
     return min(260, max(80, target_word_count))
 
 
+def _clamp_turkish_extractive_ratio(extractive_ratio: float) -> float:
+    """Keep Turkish hybrid reduction ratios in a stable range."""
+    try:
+        ratio = float(extractive_ratio)
+    except (TypeError, ValueError):
+        ratio = 0.30
+
+    return min(0.50, max(0.15, ratio))
+
+
+def _normalize_reduction_method(reduction_method: str) -> str:
+    """Normalize the Turkish hybrid reduction method name."""
+    normalized_method = reduction_method.strip().lower().replace("-", "")
+    if normalized_method == "tfidf":
+        return "tfidf"
+
+    return "textrank"
+
+
 def _repair_generated_turkish_text(text: str) -> str:
     """Repair common PDF/model artifacts in generated Turkish summaries."""
     repaired_text = _clean_html_artifacts(text)
@@ -488,13 +511,6 @@ def _repair_generated_turkish_text(text: str) -> str:
         "gerçek-leştir": "gerçekleştir",
         "çağ-cıl": "çağcıl",
         "öğren-cilerin": "öğrencilerin",
-        "Yurttaşlık Duygusunun Gelişimini Sağlar": (
-            "yurttaşlık duygusunun gelişimini sağlar"
-        ),
-        "İnsanlığın Kültürel Mirasının Kavranmasını": (
-            "insanlığın kültürel mirasının kavranmasını"
-        ),
-        "Değişimleri Anlamamızı": "değişimleri anlamamızı",
     }
 
     for artifact, replacement in artifact_replacements.items():
@@ -567,31 +583,15 @@ def _filter_summary_sentences_by_source_overlap(
     language: str,
     min_overlap_ratio: float = 0.30,
 ) -> tuple[str, list[str]]:
-    """Return source-grounded summary text and removed low-overlap sentences."""
-    source_tokens = set(_important_tokens(source_text, language))
-    kept_sentences = []
-    removed_sentences = []
+    """Return summary unchanged for Transformer stability.
 
-    for sentence in _split_transformer_summary_sentences(summary):
-        cleaned_sentence = re.sub(r"\s+", " ", sentence).strip()
-        if not cleaned_sentence:
-            continue
-
-        sentence_tokens = _important_tokens(cleaned_sentence, language)
-        if len(sentence_tokens) < 5:
-            kept_sentences.append(cleaned_sentence)
-            continue
-
-        overlap_count = sum(token in source_tokens for token in sentence_tokens)
-        overlap_ratio = overlap_count / len(sentence_tokens)
-
-        if overlap_ratio < min_overlap_ratio:
-            removed_sentences.append(cleaned_sentence)
-            continue
-
-        kept_sentences.append(cleaned_sentence)
-
-    return " ".join(kept_sentences), removed_sentences
+    A strict lexical-overlap filter was useful as a debugging idea, but it is
+    too aggressive for abstractive Turkish summaries because the model may
+    paraphrase source sentences with different surface words. The function is
+    kept for result-dict compatibility and future experiments.
+    """
+    del source_text, language, min_overlap_ratio
+    return re.sub(r"\s+", " ", summary).strip(), []
 
 
 def filter_summary_sentences_by_source_overlap(
@@ -842,92 +842,133 @@ def summarize_turkish_hybrid_transformer(
     text: str,
     extractive_ratio: float = 0.30,
     max_words_per_chunk: int = 300,
+    reduction_method: str = "textrank",
+    turkish_model_key: str = "mt5",
 ) -> dict[str, Any]:
     """Summarize Turkish text with TextRank reduction followed by Transformer.
 
     Args:
         text: Cleaned Turkish article text.
-        extractive_ratio: Fraction of valid TextRank sentences used as Transformer input.
+        extractive_ratio: Fraction of valid extractive sentences used as Transformer input.
         max_words_per_chunk: Maximum words per reduced chunk.
+        reduction_method: Extractive reduction method, ``"textrank"`` or ``"tfidf"``.
+        turkish_model_key: Turkish model key, ``"mt5"`` or ``"vbart_xlarge"``.
 
     Returns:
         Hybrid Transformer summary result with reduction and chunk metadata.
     """
     normalized_text = text.strip()
     input_word_count = _count_words(normalized_text)
+    actual_extractive_ratio = _clamp_turkish_extractive_ratio(extractive_ratio)
+    actual_reduction_method = _normalize_reduction_method(reduction_method)
+    actual_turkish_model_key = _normalize_turkish_model_key(turkish_model_key)
+    actual_model_name = _turkish_model_name(actual_turkish_model_key)
+    actual_max_words_per_chunk = (
+        400
+        if actual_turkish_model_key == "vbart_xlarge" and max_words_per_chunk == 300
+        else max_words_per_chunk
+    )
 
     if not normalized_text:
         response = _empty_transformer_response(
-            model_name=TURKISH_SUMMARIZATION_MODEL,
+            model_name=actual_model_name,
             language="tr",
             input_word_count=0,
         )
         response["method"] = "Hybrid Transformer"
+        response["turkish_model"] = actual_turkish_model_key
         response["reduced_input_word_count"] = 0
-        response["extractive_ratio"] = extractive_ratio
+        response["reduced_input_words"] = 0
+        response["chunks"] = 0
+        response["extractive_ratio"] = actual_extractive_ratio
+        response["reduction_method"] = actual_reduction_method
         response["source_filtered_sentences"] = []
         return response
 
-    textrank_result = summarize_with_textrank(
-        normalized_text,
-        summary_ratio=extractive_ratio,
-    )
-    reduced_text = str(textrank_result.get("summary", "")).strip()
+    if actual_reduction_method == "tfidf":
+        reduction_result = summarize_with_tfidf(
+            normalized_text,
+            summary_ratio=actual_extractive_ratio,
+            language="tr",
+        )
+    else:
+        reduction_result = summarize_with_textrank(
+            normalized_text,
+            summary_ratio=actual_extractive_ratio,
+            language="tr",
+        )
+
+    reduced_text = str(reduction_result.get("summary", "")).strip()
     warning = None
 
     if not reduced_text:
         reduced_text = normalized_text
         warning = (
-            "TextRank could not produce reduced Turkish input; "
+            "The selected extractive reducer could not produce reduced Turkish input; "
             "using cleaned text for hybrid Transformer summarization."
         )
 
     reduced_input_word_count = _count_words(reduced_text)
     chunks = chunk_text_by_words(
         reduced_text,
-        max_words=max_words_per_chunk,
+        max_words=actual_max_words_per_chunk,
         overlap_words=40,
     )
 
     if not chunks:
         response = _empty_transformer_response(
-            model_name=TURKISH_SUMMARIZATION_MODEL,
+            model_name=actual_model_name,
             language="tr",
             input_word_count=input_word_count,
-            error="No chunks could be created from the TextRank-reduced input.",
+            error="No chunks could be created from the reduced Turkish input.",
         )
         response["method"] = "Hybrid Transformer"
+        response["turkish_model"] = actual_turkish_model_key
         response["reduced_input_word_count"] = reduced_input_word_count
-        response["extractive_ratio"] = extractive_ratio
+        response["reduced_input_words"] = reduced_input_word_count
+        response["chunks"] = 0
+        response["extractive_ratio"] = actual_extractive_ratio
+        response["reduction_method"] = actual_reduction_method
         response["warning"] = warning
         response["source_filtered_sentences"] = []
         return response
 
     try:
-        tokenizer, model = load_turkish_seq2seq_model()
+        tokenizer, model = load_turkish_seq2seq_model(actual_model_name)
     except ImportError as error:
         response = _empty_transformer_response(
-            model_name=TURKISH_SUMMARIZATION_MODEL,
+            model_name=actual_model_name,
             language="tr",
             input_word_count=input_word_count,
             error=str(error),
         )
         response["method"] = "Hybrid Transformer"
+        response["turkish_model"] = actual_turkish_model_key
         response["reduced_input_word_count"] = reduced_input_word_count
-        response["extractive_ratio"] = extractive_ratio
+        response["reduced_input_words"] = reduced_input_word_count
+        response["chunks"] = len(chunks)
+        response["extractive_ratio"] = actual_extractive_ratio
+        response["reduction_method"] = actual_reduction_method
         response["warning"] = warning
         response["source_filtered_sentences"] = []
         return response
     except Exception as error:
         response = _empty_transformer_response(
-            model_name=TURKISH_SUMMARIZATION_MODEL,
+            model_name=actual_model_name,
             language="tr",
             input_word_count=input_word_count,
-            error=f"Turkish Hybrid Transformer model loading failed: {error}",
+            error=(
+                f"Turkish Hybrid Transformer model loading failed "
+                f"for {actual_model_name}: {error}"
+            ),
         )
         response["method"] = "Hybrid Transformer"
+        response["turkish_model"] = actual_turkish_model_key
         response["reduced_input_word_count"] = reduced_input_word_count
-        response["extractive_ratio"] = extractive_ratio
+        response["reduced_input_words"] = reduced_input_word_count
+        response["chunks"] = len(chunks)
+        response["extractive_ratio"] = actual_extractive_ratio
+        response["reduction_method"] = actual_reduction_method
         response["warning"] = warning
         response["source_filtered_sentences"] = []
         return response
@@ -943,6 +984,7 @@ def summarize_turkish_hybrid_transformer(
                 tokenizer,
                 model,
                 chunk,
+                turkish_model_key=actual_turkish_model_key,
             )
         except Exception as error:
             chunk_errors.append(f"Chunk {chunk_index}: {error}")
@@ -963,16 +1005,20 @@ def summarize_turkish_hybrid_transformer(
 
     if not generated_chunk_summaries:
         response = _empty_transformer_response(
-            model_name=TURKISH_SUMMARIZATION_MODEL,
+            model_name=actual_model_name,
             language="tr",
             input_word_count=input_word_count,
             error="Turkish Hybrid Transformer summarization failed for all chunks.",
             chunk_errors=chunk_errors,
         )
         response["method"] = "Hybrid Transformer"
+        response["turkish_model"] = actual_turkish_model_key
         response["chunk_count"] = len(chunks)
+        response["chunks"] = len(chunks)
         response["reduced_input_word_count"] = reduced_input_word_count
-        response["extractive_ratio"] = extractive_ratio
+        response["reduced_input_words"] = reduced_input_word_count
+        response["extractive_ratio"] = actual_extractive_ratio
+        response["reduction_method"] = actual_reduction_method
         response["warning"] = warning
         response["source_filtered_sentences"] = []
         return response
@@ -992,7 +1038,10 @@ def summarize_turkish_hybrid_transformer(
             "showing the least bad available chunk summary."
         )
 
-    target_min_words = _target_turkish_summary_min_words(input_word_count, 0.20)
+    target_min_words = _target_turkish_summary_min_words(
+        input_word_count,
+        actual_extractive_ratio,
+    )
     if target_min_words and _count_words(final_summary) < target_min_words:
         fallback_summary = postprocess_transformer_summary(
             " ".join(generated_chunk_summaries),
@@ -1006,34 +1055,25 @@ def summarize_turkish_hybrid_transformer(
             )
             warning = f"{warning} {fallback_warning}" if warning else fallback_warning
 
-    filtered_summary, source_filtered_sentences = (
-        _filter_summary_sentences_by_source_overlap(
-            final_summary,
-            reduced_text,
-            "tr",
-            min_overlap_ratio=0.30,
-        )
-    )
-    if filtered_summary != final_summary:
-        final_summary = postprocess_transformer_summary(filtered_summary, "tr")
-
-    if not final_summary and source_filtered_sentences:
-        warning_text = "Source-overlap filtering removed every final sentence."
-        warning = f"{warning} {warning_text}" if warning else warning_text
+    source_filtered_sentences = []
 
     return {
         "method": "Hybrid Transformer",
         "language": "tr",
-        "model_name": TURKISH_SUMMARIZATION_MODEL,
+        "model_name": actual_model_name,
+        "turkish_model": actual_turkish_model_key,
         "summary": final_summary,
         "chunk_count": len(chunks),
+        "chunks": len(chunks),
         "chunk_summaries": chunk_summaries,
         "rejected_chunk_summaries": rejected_chunk_summaries,
         "source_filtered_sentences": source_filtered_sentences,
         "input_word_count": input_word_count,
         "reduced_input_word_count": reduced_input_word_count,
+        "reduced_input_words": reduced_input_word_count,
         "summary_word_count": _count_words(final_summary),
-        "extractive_ratio": extractive_ratio,
+        "extractive_ratio": actual_extractive_ratio,
+        "reduction_method": actual_reduction_method,
         "error": None,
         "warning": warning,
         "chunk_errors": chunk_errors,

@@ -67,16 +67,8 @@ def remove_doi_patterns(text: str) -> str:
     return DOI_PATTERN.sub(" ", text)
 
 
-def fix_pdf_hyphenation(text: str) -> str:
-    """Join words split by PDF line-break or spacing hyphenation.
-
-    Examples:
-        ``ko-\nrunmasına`` -> ``korunmasına``
-        ``ko- Runmasına`` -> ``korunmasına``
-        ``yo- lunda`` -> ``yolunda``
-        ``mevzuat- la`` -> ``mevzuatla``
-    """
-
+def _fix_pdf_hyphenation_with_count(text: str) -> tuple[str, int]:
+    """Join PDF-split word fragments and return the number of repairs."""
     def join_fragments(match: re.Match[str]) -> str:
         left_fragment = match.group(1)
         right_fragment = match.group(2)
@@ -90,7 +82,20 @@ def fix_pdf_hyphenation(text: str) -> str:
 
         return f"{left_fragment}{right_fragment}"
 
-    return WORD_FRAGMENT_PATTERN.sub(join_fragments, text)
+    return WORD_FRAGMENT_PATTERN.subn(join_fragments, text)
+
+
+def fix_pdf_hyphenation(text: str) -> str:
+    """Join words split by PDF line-break or spacing hyphenation.
+
+    Examples:
+        ``ko-\nrunmasına`` -> ``korunmasına``
+        ``ko- Runmasına`` -> ``korunmasına``
+        ``yo- lunda`` -> ``yolunda``
+        ``mevzuat- la`` -> ``mevzuatla``
+    """
+    repaired_text, _ = _fix_pdf_hyphenation_with_count(text)
+    return repaired_text
 
 
 def remove_page_numbers(text: str) -> str:
@@ -305,3 +310,370 @@ def remove_extra_whitespace(text: str) -> str:
 def normalize_whitespace(text: str) -> str:
     """Backward-compatible alias for whitespace normalization."""
     return remove_extra_whitespace(text)
+
+
+# ---------------------------------------------------------------------------
+# Summarization-focused cleaning helpers
+# ---------------------------------------------------------------------------
+
+_TURKISH_METADATA_PATTERNS = (
+    re.compile(r"\b(?:cilt|sayı|sayfa)\s*[:/]?\s*\d+", flags=re.IGNORECASE),
+    re.compile(r"\bgeliş\s+tarihi\b", flags=re.IGNORECASE),
+    re.compile(r"\bkabul\s+tarihi\b", flags=re.IGNORECASE),
+    re.compile(r"\bsorumlu\s+yazar\b", flags=re.IGNORECASE),
+    re.compile(r"\banahtar\s+kelimeler\b\s*:?", flags=re.IGNORECASE),
+)
+
+_ENGLISH_METADATA_PATTERNS = (
+    re.compile(r"\b(?:volume|vol\.?|issue|no\.?|pages?)\s*[:/]?\s*\d+", flags=re.IGNORECASE),
+    re.compile(r"^\s*(?:received|accepted|revised|available\s+online)\b", flags=re.IGNORECASE),
+    re.compile(r"\bcorresponding\s+author\b", flags=re.IGNORECASE),
+    re.compile(r"\bkeywords\b\s*:?", flags=re.IGNORECASE),
+    re.compile(r"^\s*published\s+by\b", flags=re.IGNORECASE),
+    re.compile(r"^\s*copyright\b|^\s*©", flags=re.IGNORECASE),
+)
+
+_SHARED_METADATA_PATTERNS = (
+    re.compile(r"\b(?:e-?issn|p-?issn|issn)\b", flags=re.IGNORECASE),
+    re.compile(r"\bdoi\s*:|\bdoi\.org\b|\b10\.\d{4,9}/", flags=re.IGNORECASE),
+)
+
+_CURRENCY_PATTERN = re.compile(r"[€$£₺]|\b(?:TL|TRY|USD|EUR|Euro)\b", flags=re.IGNORECASE)
+_NUMBER_TOKEN_PATTERN = re.compile(r"^[+-]?\d+(?:[.,:/-]\d+)*%?$")
+_DECIMAL_OR_AMOUNT_PATTERN = re.compile(r"\d+[.,]\d+|\d+\s*(?:%|€|\$|£|₺|\bTL\b|\bEuro\b)", flags=re.IGNORECASE)
+_TABLE_HEADER_TERM_PATTERN = re.compile(
+    r"\b(?:adet|tutar\w*|toplam|oran|yüzde|type|count|amount|total|rate|percent)\b",
+    flags=re.IGNORECASE,
+)
+_COMMON_SECTION_HEADINGS = {
+    "abstract",
+    "acknowledgements",
+    "conclusion",
+    "discussion",
+    "introduction",
+    "method",
+    "methodology",
+    "results",
+    "özet",
+    "giriş",
+    "sonuç",
+    "sonuçlar",
+    "tartışma",
+    "yöntem",
+}
+
+
+def _count_removed_lines(original_lines: list[str], kept_lines: list[str]) -> int:
+    """Return a conservative removed-line count."""
+    return max(len(original_lines) - len(kept_lines), 0)
+
+
+def _line_has_sentence_structure(line: str) -> bool:
+    """Return whether a line has enough shape to look like prose."""
+    stripped = line.strip()
+    words = stripped.split()
+    if len(words) >= 12 and stripped.endswith((".", "!", "?", ".”", ".’")):
+        return True
+    return len(words) >= 18 and stripped.count(",") <= 4
+
+
+def _metadata_patterns_for_language(language: str) -> tuple[re.Pattern[str], ...]:
+    """Return metadata patterns for a detected language."""
+    normalized_language = language.lower().strip()
+    if normalized_language == "tr":
+        return _TURKISH_METADATA_PATTERNS + _SHARED_METADATA_PATTERNS
+    if normalized_language == "en":
+        return _ENGLISH_METADATA_PATTERNS + _SHARED_METADATA_PATTERNS
+    return _TURKISH_METADATA_PATTERNS + _ENGLISH_METADATA_PATTERNS + _SHARED_METADATA_PATTERNS
+
+
+def _looks_like_metadata_line(line: str, language: str) -> bool:
+    """Return whether a line looks like bibliographic/article metadata."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if _line_has_sentence_structure(stripped) and len(stripped) > 180:
+        return False
+
+    has_metadata_term = any(
+        pattern.search(stripped)
+        for pattern in _metadata_patterns_for_language(language)
+    )
+    if not has_metadata_term:
+        return False
+
+    has_field_shape = bool(re.search(r"[:/|]|\d{4}|\d+\s*[-–]\s*\d+", stripped))
+    return len(stripped) <= 220 or has_field_shape
+
+
+def _numeric_token_count(words: list[str]) -> int:
+    """Count numeric-looking tokens in a list of words."""
+    return sum(1 for word in words if _NUMBER_TOKEN_PATTERN.fullmatch(word.strip("()[];,")))
+
+
+def _looks_like_table_line(line: str) -> bool:
+    """Return whether a line looks like a table row or table header."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+
+    words = stripped.split()
+    word_count = len(words)
+    if word_count < 3 or word_count > 48:
+        return False
+
+    numeric_tokens = _numeric_token_count(words)
+    numeric_ratio = numeric_tokens / max(word_count, 1)
+    decimal_or_amount_count = len(_DECIMAL_OR_AMOUNT_PATTERN.findall(stripped))
+    currency_count = len(_CURRENCY_PATTERN.findall(stripped))
+    tabular_spacing = bool(re.search(r"\S\s{2,}\S", stripped)) or "\t" in stripped
+    slash_fragment_count = stripped.count("/")
+    sentence_punctuation_count = sum(stripped.count(char) for char in ".!?")
+
+    if numeric_tokens >= 4 and numeric_ratio >= 0.30 and sentence_punctuation_count <= 1:
+        return True
+    if numeric_tokens >= 3 and numeric_ratio >= 0.40 and word_count <= 16:
+        return True
+    if decimal_or_amount_count >= 3 and sentence_punctuation_count <= 1:
+        return True
+    if currency_count >= 2 and numeric_tokens >= 2:
+        return True
+    if tabular_spacing and numeric_tokens >= 3:
+        return True
+    if slash_fragment_count >= 4 and word_count <= 24:
+        return True
+    if (
+        word_count <= 12
+        and len(_TABLE_HEADER_TERM_PATTERN.findall(stripped)) >= 2
+        and sentence_punctuation_count == 0
+    ):
+        return True
+
+    short_column_tokens = sum(1 for word in words if len(word.strip(".,;:()")) <= 3)
+    return word_count <= 16 and short_column_tokens >= 8 and sentence_punctuation_count == 0
+
+
+def _looks_like_repeated_header_footer_line(line: str, count: int) -> bool:
+    """Return whether a repeated line is likely a page header/footer."""
+    stripped = line.strip()
+    if count < 2 or not stripped:
+        return False
+    if _line_has_sentence_structure(stripped):
+        return False
+
+    words = stripped.split()
+    if len(words) > 16 or len(stripped) > 140:
+        return False
+
+    has_header_shape = bool(re.search(r"[/|:–-]|\d", stripped))
+    compact_title_like = sum(word[:1].isupper() for word in words) >= max(2, len(words) // 2)
+    return has_header_shape or compact_title_like or len(words) <= 8
+
+
+def _remove_embedded_repeated_fragments(
+    line: str,
+    repeated_fragments: list[str],
+) -> str:
+    """Remove repeated header/footer fragments embedded inside longer lines."""
+    cleaned_line = line
+
+    for fragment in repeated_fragments:
+        stripped_fragment = fragment.strip()
+        if len(stripped_fragment) < 12:
+            continue
+
+        escaped_fragment = re.escape(stripped_fragment)
+
+        joined_fragment_pattern = re.compile(
+            rf"([A-Za-zÇĞİÖŞÜçğıöşü]{{3,}}){escaped_fragment}\s+([a-zçğıöşü]{{3,}})",
+            flags=re.IGNORECASE,
+        )
+        cleaned_line = joined_fragment_pattern.sub(
+            lambda match: f"{match.group(1)}{match.group(2)}",
+            cleaned_line,
+        )
+
+        spaced_fragment_pattern = re.compile(
+            rf"\s+{escaped_fragment}\s+",
+            flags=re.IGNORECASE,
+        )
+        cleaned_line = spaced_fragment_pattern.sub(" ", cleaned_line)
+
+        attached_fragment_pattern = re.compile(
+            rf"([A-Za-zÇĞİÖŞÜçğıöşü]{{3,}}){escaped_fragment}",
+            flags=re.IGNORECASE,
+        )
+        cleaned_line = attached_fragment_pattern.sub(r"\1", cleaned_line)
+
+    return re.sub(r"\s{2,}", " ", cleaned_line).strip()
+
+
+def _is_common_section_heading(line: str) -> bool:
+    """Return whether a short line is a general academic section heading."""
+    normalized = re.sub(r"^\d+(?:\.\d+)*\.?\s*", "", line.strip().lower())
+    normalized = normalized.strip(" .:-–—")
+    return normalized in _COMMON_SECTION_HEADINGS
+
+
+def remove_academic_metadata_lines(text: str, language: str) -> tuple[str, int]:
+    """Remove general academic metadata lines and return removal count."""
+    lines = text.splitlines()
+    kept_lines: list[str] = []
+
+    for line in lines:
+        if _looks_like_metadata_line(line, language):
+            continue
+        kept_lines.append(line)
+
+    return "\n".join(kept_lines), _count_removed_lines(lines, kept_lines)
+
+
+def remove_table_like_lines(text: str) -> tuple[str, int]:
+    """Remove table-like row/header lines and return removal count."""
+    lines = text.splitlines()
+    kept_lines: list[str] = []
+
+    for line in lines:
+        if _looks_like_table_line(line):
+            continue
+        kept_lines.append(line)
+
+    return "\n".join(kept_lines), _count_removed_lines(lines, kept_lines)
+
+
+def remove_repeated_header_footer_lines(text: str) -> tuple[str, int]:
+    """Remove repeated general page header/footer lines and return removal count."""
+    lines = text.splitlines()
+    line_counts: dict[str, int] = {}
+
+    for line in lines:
+        normalized = _normalize_line_for_counting(line)
+        if normalized:
+            line_counts[normalized] = line_counts.get(normalized, 0) + 1
+
+    repeated_fragments = [
+        line.strip()
+        for line in lines
+        if line.strip()
+        and _looks_like_repeated_header_footer_line(
+            line.strip(),
+            line_counts.get(_normalize_line_for_counting(line), 0),
+        )
+    ]
+
+    kept_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        normalized = _normalize_line_for_counting(line)
+        count = line_counts.get(normalized, 0)
+
+        if stripped and _looks_like_repeated_header_footer_line(stripped, count):
+            continue
+        kept_lines.append(_remove_embedded_repeated_fragments(line, repeated_fragments))
+
+    return "\n".join(kept_lines), _count_removed_lines(lines, kept_lines)
+
+
+def remove_noisy_short_lines(text: str) -> tuple[str, int]:
+    """Remove very short PDF fragments and return removal count."""
+    lines = text.splitlines()
+    kept_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            kept_lines.append(line)
+            continue
+
+        if len(stripped) < 3:
+            continue
+        if PAGE_NUMBER_PATTERN.fullmatch(stripped):
+            continue
+        if _is_mostly_numbers_or_symbols(stripped):
+            continue
+        if re.fullmatch(r"(?:[A-ZÇĞİÖŞÜ]\.?\s*){1,3}", stripped):
+            continue
+        if _is_common_section_heading(stripped):
+            kept_lines.append(line)
+            continue
+        if len(stripped.split()) <= 2 and not re.search(r"[.!?]$", stripped):
+            continue
+
+        kept_lines.append(line)
+
+    return "\n".join(kept_lines), _count_removed_lines(lines, kept_lines)
+
+
+def _safe_cleaning_step(
+    text: str,
+    default_count: int,
+    step,
+    *args,
+) -> tuple[str, int]:
+    """Run a cleaning step without letting it crash the app."""
+    try:
+        return step(text, *args)
+    except Exception:
+        return text, default_count
+
+
+def clean_for_summarization(text: str, language: str) -> tuple[str, dict[str, int]]:
+    """Apply the line-preserving summarization cleaning pipeline.
+
+    The input should be raw or lightly normalized PDF text, because repeated
+    headers, metadata, tables, and short fragments must be removed before
+    whitespace is collapsed.
+    """
+    debug = {
+        "removed_repeated_line_count": 0,
+        "removed_metadata_line_count": 0,
+        "removed_table_line_count": 0,
+        "removed_short_noise_line_count": 0,
+        "repaired_hyphenation_count": 0,
+    }
+
+    result = text
+    try:
+        result, debug["repaired_hyphenation_count"] = _fix_pdf_hyphenation_with_count(
+            result
+        )
+    except Exception:
+        pass
+
+    for step in (remove_urls, remove_emails, remove_doi_patterns):
+        try:
+            result = step(result)
+        except Exception:
+            pass
+
+    try:
+        result = remove_references_section(result, language)
+    except Exception:
+        pass
+
+    result, count = _safe_cleaning_step(result, 0, remove_repeated_header_footer_lines)
+    debug["removed_repeated_line_count"] = count
+
+    result, count = _safe_cleaning_step(result, 0, remove_academic_metadata_lines, language)
+    debug["removed_metadata_line_count"] = count
+
+    result, count = _safe_cleaning_step(result, 0, remove_table_like_lines)
+    debug["removed_table_line_count"] = count
+
+    result, count = _safe_cleaning_step(result, 0, remove_noisy_short_lines)
+    debug["removed_short_noise_line_count"] = count
+
+    try:
+        result, second_pass_count = _fix_pdf_hyphenation_with_count(result)
+        debug["repaired_hyphenation_count"] += second_pass_count
+    except Exception:
+        pass
+
+    try:
+        result = "\n".join(line.strip() for line in result.splitlines())
+        result = re.sub(r"\n{3,}", "\n\n", result)
+        result = remove_extra_whitespace(result)
+    except Exception:
+        result = text
+
+    return result, debug

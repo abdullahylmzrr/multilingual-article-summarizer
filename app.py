@@ -24,6 +24,350 @@ from modules.pdf_reader import PDFReadError, extract_text_from_pdf
 from modules.preprocessing import preprocess_text
 
 
+UI_TEXT = {
+    "en": {
+        "advanced_text_views": "Advanced text views",
+        "all_methods_comparison_metrics": "All Methods Comparison Metrics",
+        "app_subtitle": (
+            "Compare TF-IDF, TextRank and Transformer-based summaries for Turkish "
+            "and English academic PDFs."
+        ),
+        "app_title": "Multilingual Academic Article Summarizer",
+        "bart_large_cnn": "BART Large CNN",
+        "change_pdf": "Change PDF",
+        "chunk_errors": "Chunk errors:",
+        "chunk_summaries": "Chunk summaries",
+        "chunks": "Chunks",
+        "cleaned_characters": "Cleaned Characters",
+        "cleaned_text": "Cleaned Text",
+        "cleaned_text_preview": "Cleaned text preview",
+        "cleaned_words": "Cleaned Words",
+        "common_selected_sentences": "Common selected sentences",
+        "comparison_metrics": "Comparison Metrics",
+        "detected_language": "Detected Language",
+        "debug_details": "Debug details",
+        "document_statistics": "Document Statistics",
+        "error": "Error",
+        "extractive_ratio": "Extractive ratio",
+        "file": "File",
+        "generate_again": "Generate Again",
+        "generate_summary": "Generate Summary",
+        "hero_kicker": "Academic NLP Workspace",
+        "input_words": "Input Words",
+        "interface_language": "Interface language",
+        "language_toggle": "Language",
+        "jaccard_similarity": "Jaccard similarity",
+        "language": "Language",
+        "method": "Method",
+        "method_compare_all": "Compare All",
+        "method_compare_both": "Compare Both",
+        "method_tfidf": "TF-IDF",
+        "method_textrank": "TextRank",
+        "method_transformer": "Transformer",
+        "model": "Model",
+        "model_id": "Model ID",
+        "nlp_text": "NLP Text",
+        "nlp_text_preview": "NLP text preview",
+        "no_chunk_summaries": "No chunk summaries available.",
+        "no_common_selected_sentences": "No common selected sentences.",
+        "no_extractable_text": "No extractable text was found in this PDF.",
+        "no_summary": "No summary could be generated from the current text.",
+        "no_summary_generated": "No summary was generated.",
+        "original": "Original",
+        "original_text": "Original Text",
+        "original_text_preview": "Original text preview",
+        "preprocessing_debug": "Preprocessing debug",
+        "preprocessing_failed": "Preprocessing failed to produce document statistics.",
+        "please_upload_pdf": "Please upload a PDF to begin.",
+        "processed_text": "Processed Text",
+        "processed_text_preview": "Processed text preview",
+        "project_intro": (
+            "Upload a Turkish or English academic PDF and compare TF-IDF, "
+            "TextRank, and Transformer summaries."
+        ),
+        "raw_characters": "Raw Characters",
+        "raw_text": "Raw Text",
+        "raw_text_preview": "Raw text preview",
+        "raw_words": "Raw Words",
+        "reading_pdf": "Reading PDF text...",
+        "reduced_words": "Reduced Words",
+        "reduction": "Reduction",
+        "reduction_method": "Reduction method",
+        "rejected_chunk_summaries": "Rejected chunk summaries:",
+        "removed_metadata_lines": "Removed metadata lines",
+        "removed_repeated_lines": "Removed repeated lines",
+        "removed_short_noisy_lines": "Removed short/noisy lines",
+        "removed_table_like_lines": "Removed table-like lines",
+        "repaired_hyphenations": "Repaired hyphenations",
+        "summary": "Summary",
+        "summary_method": "Summarization method",
+        "summary_ratio": "Summary ratio",
+        "summary_results": "Summarization Results",
+        "summary_words": "Summary Words",
+        "summarization_text": "Summarization Text",
+        "summarization_text_preview": "Summarization text preview",
+        "summarization_words": "Summarization Words",
+        "tfidf_compression": "TF-IDF compression",
+        "tfidf_words": "TF-IDF words",
+        "textrank_compression": "TextRank compression",
+        "textrank_words": "TextRank words",
+        "transformer_compression": "Transformer compression",
+        "transformer_language_warning": (
+            "Transformer summarization requires detected language to be English or Turkish."
+        ),
+        "transformer_loading": "Loading Transformer model and generating summary...",
+        "transformer_summary": "Transformer Summary",
+        "transformer_words": "Transformer words",
+        "turkish_model": "Turkish model",
+        "turkish_transformer_model": "Turkish Transformer model",
+        "turkish_transformer_reduction_method": "Turkish Transformer reduction method",
+        "upload_pdf_article": "Upload PDF article",
+        "uploaded_file": "Uploaded file",
+        "valid": "Valid",
+        "warning": "Warning",
+        "source_filtered_sentences": "Source-filtered sentences:",
+        "detecting_language": "Detecting language...",
+        "cleaning_text": "Cleaning academic text...",
+        "generating_summary": "Generating summary...",
+        "preparing_results": "Preparing results...",
+        "ratio_10": "10% Short",
+        "ratio_15": "15% Balanced",
+        "ratio_20": "20% Detailed",
+        "ratio_30": "30% Extended",
+        "ratio_40": "40% Very detailed",
+        "selected": "Selected",
+        "selected_sentences": "selected sentences",
+        "ratio": "Ratio",
+        "original_words": "Original words",
+    },
+    "tr": {
+        "advanced_text_views": "Gelişmiş metin görünümleri",
+        "all_methods_comparison_metrics": "Tüm Yöntem Karşılaştırma Metrikleri",
+        "app_subtitle": (
+            "Türkçe ve İngilizce akademik PDF'ler için TF-IDF, TextRank ve "
+            "Transformer tabanlı özetleri karşılaştırın."
+        ),
+        "app_title": "Çok Dilli Akademik Makale Özetleyici",
+        "bart_large_cnn": "BART Large CNN",
+        "change_pdf": "PDF'i değiştir",
+        "chunk_errors": "Chunk hataları:",
+        "chunk_summaries": "Chunk özetleri",
+        "chunks": "Chunk",
+        "cleaned_characters": "Temiz karakter",
+        "cleaned_text": "Temizlenmiş Metin",
+        "cleaned_text_preview": "Temizlenmiş metin önizleme",
+        "cleaned_words": "Temiz kelime",
+        "common_selected_sentences": "Ortak seçilen cümleler",
+        "comparison_metrics": "Karşılaştırma Metrikleri",
+        "detected_language": "Algılanan Dil",
+        "debug_details": "Hata ayıklama detayları",
+        "document_statistics": "Belge İstatistikleri",
+        "error": "Hata",
+        "extractive_ratio": "Extractive oran",
+        "file": "Dosya",
+        "generate_again": "Tekrar Özetle",
+        "generate_summary": "Özet Oluştur",
+        "hero_kicker": "Akademik NLP Çalışma Alanı",
+        "input_words": "Girdi Kelime",
+        "interface_language": "Arayüz dili",
+        "language_toggle": "Dil",
+        "jaccard_similarity": "Jaccard benzerliği",
+        "language": "Dil",
+        "method": "Yöntem",
+        "method_compare_all": "Tümünü Karşılaştır",
+        "method_compare_both": "İkisini Karşılaştır",
+        "method_tfidf": "TF-IDF",
+        "method_textrank": "TextRank",
+        "method_transformer": "Transformer",
+        "model": "Model",
+        "model_id": "Model ID",
+        "nlp_text": "NLP Metni",
+        "nlp_text_preview": "NLP metni önizleme",
+        "no_chunk_summaries": "Chunk özeti yok.",
+        "no_common_selected_sentences": "Ortak seçilen cümle yok.",
+        "no_extractable_text": "Bu PDF içinde çıkarılabilir metin bulunamadı.",
+        "no_summary": "Mevcut metinden özet üretilemedi.",
+        "no_summary_generated": "Özet oluşturulmadı.",
+        "original": "Orijinal",
+        "original_text": "Orijinal Metin",
+        "original_text_preview": "Orijinal metin önizleme",
+        "preprocessing_debug": "Ön işleme detayları",
+        "preprocessing_failed": "Ön işleme belge istatistiklerini üretemedi.",
+        "please_upload_pdf": "Başlamak için lütfen bir PDF yükleyin.",
+        "processed_text": "İşlenmiş Metin",
+        "processed_text_preview": "İşlenmiş metin önizleme",
+        "project_intro": (
+            "Türkçe veya İngilizce akademik PDF yükleyin; TF-IDF, TextRank "
+            "ve Transformer özetlerini karşılaştırın."
+        ),
+        "raw_characters": "Ham karakter",
+        "raw_text": "Ham Metin",
+        "raw_text_preview": "Ham metin önizleme",
+        "raw_words": "Ham kelime",
+        "reading_pdf": "PDF metni okunuyor...",
+        "reduced_words": "Azaltılmış Kelime",
+        "reduction": "Azaltma",
+        "reduction_method": "Azaltma yöntemi",
+        "rejected_chunk_summaries": "Reddedilen chunk özetleri:",
+        "removed_metadata_lines": "Kaldırılan metadata satırları",
+        "removed_repeated_lines": "Kaldırılan tekrar satırları",
+        "removed_short_noisy_lines": "Kaldırılan kısa/gürültülü satırlar",
+        "removed_table_like_lines": "Kaldırılan tablo benzeri satırlar",
+        "repaired_hyphenations": "Düzeltilen tire bölünmeleri",
+        "summary": "Özet",
+        "summary_method": "Özetleme yöntemi",
+        "summary_ratio": "Özet oranı",
+        "summary_results": "Özetleme Sonuçları",
+        "summary_words": "Özet Kelime",
+        "summarization_text": "Özetleme Metni",
+        "summarization_text_preview": "Özetleme metni önizleme",
+        "summarization_words": "Özetleme kelime",
+        "tfidf_compression": "TF-IDF sıkıştırma",
+        "tfidf_words": "TF-IDF kelime",
+        "textrank_compression": "TextRank sıkıştırma",
+        "textrank_words": "TextRank kelime",
+        "transformer_compression": "Transformer sıkıştırma",
+        "transformer_language_warning": (
+            "Transformer özetleme için algılanan dil İngilizce veya Türkçe olmalıdır."
+        ),
+        "transformer_loading": "Transformer modeli yükleniyor ve özet oluşturuluyor...",
+        "transformer_summary": "Transformer Özeti",
+        "transformer_words": "Transformer kelime",
+        "turkish_model": "Türkçe model",
+        "turkish_transformer_model": "Türkçe Transformer modeli",
+        "turkish_transformer_reduction_method": "Türkçe Transformer azaltma yöntemi",
+        "upload_pdf_article": "PDF makale yükle",
+        "uploaded_file": "Yüklenen dosya",
+        "valid": "Geçerli",
+        "warning": "Uyarı",
+        "source_filtered_sentences": "Kaynak filtresinden çıkan cümleler:",
+        "detecting_language": "Dil algılanıyor...",
+        "cleaning_text": "Akademik metin temizleniyor...",
+        "generating_summary": "Özet oluşturuluyor...",
+        "preparing_results": "Sonuçlar hazırlanıyor...",
+        "ratio_10": "10% Kısa",
+        "ratio_15": "15% Dengeli",
+        "ratio_20": "20% Detaylı",
+        "ratio_30": "30% Geniş",
+        "ratio_40": "40% Çok detaylı",
+        "selected": "Seçilen",
+        "selected_sentences": "seçilen cümleler",
+        "ratio": "Oran",
+        "original_words": "Orijinal kelime",
+    },
+}
+
+
+METHOD_LABEL_KEYS = {
+    "TF-IDF": "method_tfidf",
+    "TextRank": "method_textrank",
+    "Transformer": "method_transformer",
+    "Compare Both": "method_compare_both",
+    "Compare All": "method_compare_all",
+}
+
+
+RATIO_LABEL_KEYS = {
+    0.10: "ratio_10",
+    0.15: "ratio_15",
+    0.20: "ratio_20",
+    0.30: "ratio_30",
+    0.40: "ratio_40",
+}
+
+
+UI_LANGUAGE_OPTIONS = {
+    "English": "en",
+    "Türkçe": "tr",
+}
+
+
+def get_ui_language() -> str:
+    """Return the selected interface language without affecting NLP language detection."""
+    query_language = str(st.query_params.get("ui_lang", ""))
+    if query_language in UI_TEXT:
+        st.session_state["ui_language"] = query_language
+        return query_language
+
+    language = str(st.session_state.get("ui_language", "en"))
+    if language in UI_LANGUAGE_OPTIONS:
+        language = UI_LANGUAGE_OPTIONS[language]
+    return language if language in UI_TEXT else "en"
+
+
+def t(key: str) -> str:
+    """Translate a UI label with English fallback."""
+    language = get_ui_language()
+    return UI_TEXT.get(language, UI_TEXT["en"]).get(key, UI_TEXT["en"].get(key, key))
+
+
+def format_method_label(method: str) -> str:
+    """Return a localized label for a stable summarization method value."""
+    return t(METHOD_LABEL_KEYS.get(method, method))
+
+
+def format_ratio_label(value: float) -> str:
+    """Return a localized label for a stable numeric summary ratio."""
+    return t(RATIO_LABEL_KEYS.get(value, "summary_ratio"))
+
+
+def render_language_toggle() -> str:
+    """Render a plain text interface-language switch."""
+    current_language = get_ui_language()
+    next_language = "tr" if current_language == "en" else "en"
+    label = "TR" if current_language == "en" else "EN"
+    st.markdown(
+        f"""
+        <a class="lang-text-toggle" href="?ui_lang={next_language}" target="_self"
+           title="{html.escape(t("language_toggle"))}">
+            {label}
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.session_state["ui_language"] = current_language
+    return current_language
+
+
+def _word_count(text: Any) -> int:
+    """Count words for UI-only metrics."""
+    return len(str(text or "").split())
+
+
+def friendly_reduction_name(value: Any) -> str:
+    """Return a compact display label for a Turkish reduction method."""
+    return "TF-IDF" if str(value).lower() == "tfidf" else "TextRank"
+
+
+def friendly_model_name(result: dict[str, Any]) -> str:
+    """Return a compact display label for Transformer model metrics."""
+    turkish_model = str(result.get("turkish_model", "")).lower()
+    if turkish_model == "vbart_xlarge":
+        return "VBART XLarge"
+    if turkish_model == "mt5":
+        return "mT5"
+
+    model_name = str(result.get("model_name", ""))
+    if model_name == "facebook/bart-large-cnn":
+        return t("bart_large_cnn")
+    if model_name == "vngrs-ai/VBART-XLarge-Summarization":
+        return "VBART XLarge"
+    if model_name == "mukayese/mt5-base-turkish-summarization":
+        return "mT5"
+
+    return model_name.rsplit("/", maxsplit=1)[-1] if "/" in model_name else model_name
+
+
+def render_metric_grid(metrics: list[tuple[str, Any]], max_columns: int = 4) -> None:
+    """Render compact metric cards in responsive rows."""
+    clean_metrics = [(label, value) for label, value in metrics if value is not None]
+    for start in range(0, len(clean_metrics), max_columns):
+        row_metrics = clean_metrics[start : start + max_columns]
+        columns = st.columns(len(row_metrics))
+        for column, (label, value) in zip(columns, row_metrics):
+            column.metric(label, value)
+
+
 def load_local_image_as_base64(image_path: str) -> str:
     """Load a local image file and return it as a base64-encoded string."""
     resolved_path = Path(image_path)
@@ -214,6 +558,74 @@ def inject_custom_css(background_path: str = "assets/summarizer-bg.jpeg") -> Non
             line-height: 1.45;
         }}
 
+        .header-copy {{
+            padding: 0.15rem 0 0.25rem;
+        }}
+
+        .header-copy .hero-kicker {{
+            margin: 0 0 0.3rem;
+            color: var(--accent-cyan);
+            font-size: 0.62rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }}
+
+        .header-copy h1 {{
+            margin: 0;
+            color: #f8fcff;
+            font-size: clamp(1.55rem, 3vw, 2.35rem);
+            line-height: 1.12;
+            letter-spacing: 0;
+        }}
+
+        .header-copy.compact h1 {{
+            font-size: clamp(1.05rem, 1.7vw, 1.45rem);
+            line-height: 1.1;
+        }}
+
+        .header-copy p {{
+            max-width: 820px;
+            margin: 0.55rem 0 0;
+            color: var(--text-muted);
+            font-size: 0.94rem;
+            line-height: 1.55;
+        }}
+
+        .header-copy.compact p {{
+            margin-top: 0.28rem;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }}
+
+        .language-toggle-slot {{
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-start;
+            padding-top: 0;
+            margin-top: -0.25rem;
+        }}
+
+        .lang-text-toggle {{
+            display: inline-block;
+            color: rgba(226, 238, 249, 0.62) !important;
+            font-size: 0.68rem;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 0.04em;
+            text-decoration: none !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            padding: 0;
+        }}
+
+        .lang-text-toggle:hover {{
+            color: rgba(247, 252, 255, 0.95) !important;
+            text-decoration: underline !important;
+            text-underline-offset: 3px;
+        }}
+
         .summary-card {{
             margin: 0.5rem 0 1rem;
             width: 100%;
@@ -292,6 +704,10 @@ def inject_custom_css(background_path: str = "assets/summarizer-bg.jpeg") -> Non
         [data-testid="stExpander"],
         [data-testid="stVerticalBlockBorderWrapper"] {{
             border-radius: 18px;
+        }}
+
+        [data-testid="stTextArea"] {{
+            max-width: 1080px;
         }}
 
         [data-testid="stVerticalBlockBorderWrapper"] {{
@@ -387,20 +803,27 @@ def inject_custom_css(background_path: str = "assets/summarizer-bg.jpeg") -> Non
 
         [data-testid="stTabs"] div[role="tablist"] {{
             gap: 0.45rem;
-            border-bottom: 1px solid rgba(125, 211, 252, 0.12);
+            padding: 0.28rem;
+            border: 1px solid rgba(125, 211, 252, 0.12);
+            border-radius: 14px;
+            background: rgba(1, 5, 14, 0.30);
         }}
 
         [data-testid="stTabs"] button[role="tab"] {{
-            height: 2.75rem;
+            height: 2.55rem;
             padding: 0 1rem;
-            border-radius: 999px 999px 0 0;
+            border: 1px solid transparent;
+            border-radius: 12px;
             color: #adc2d7;
             background: transparent;
+            transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
         }}
 
         [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
             color: #f8fcff;
-            background: rgba(57, 217, 255, 0.12);
+            border-color: rgba(57, 217, 255, 0.36);
+            background: rgba(57, 217, 255, 0.13);
+            box-shadow: inset 0 -2px 0 rgba(57, 217, 255, 0.42);
         }}
 
         [data-testid="stExpander"] {{
@@ -417,6 +840,7 @@ def inject_custom_css(background_path: str = "assets/summarizer-bg.jpeg") -> Non
         }}
 
         [data-testid="stTextArea"] textarea {{
+            max-width: 1080px;
             border: 1px solid rgba(125, 211, 252, 0.17) !important;
             border-radius: 16px !important;
             background: rgba(1, 5, 14, 0.88) !important;
@@ -522,35 +946,43 @@ def inject_custom_css(background_path: str = "assets/summarizer-bg.jpeg") -> Non
 
 def render_hero() -> None:
     """Render the application hero section."""
-    st.markdown(
-        """
-        <section class="hero-section">
-            <p class="hero-kicker">Academic NLP Workspace</p>
-            <h1>Multilingual Academic Article Summarizer</h1>
-            <p>
-                Compare TF-IDF, TextRank and Transformer-based summaries for Turkish
-                and English academic PDFs.
-            </p>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        text_col, toggle_col = st.columns([0.96, 0.04])
+        with toggle_col:
+            st.markdown('<div class="language-toggle-slot">', unsafe_allow_html=True)
+            render_language_toggle()
+            st.markdown("</div>", unsafe_allow_html=True)
+        with text_col:
+            st.markdown(
+                f"""
+                <div class="header-copy compact">
+                    <p class="hero-kicker">{html.escape(t("hero_kicker"))}</p>
+                    <h1>{html.escape(t("app_title"))}</h1>
+                    <p>{html.escape(t("app_subtitle"))}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def render_center_header() -> None:
     """Render the compact centered workspace introduction."""
-    st.markdown(
-        """
-        <div class="control-card">
-            <h1>Multilingual Academic Article Summarizer</h1>
-            <p>
-                Upload a Turkish or English academic PDF and compare TF-IDF,
-                TextRank, and Transformer summaries.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        text_col, toggle_col = st.columns([0.96, 0.04])
+        with toggle_col:
+            st.markdown('<div class="language-toggle-slot">', unsafe_allow_html=True)
+            render_language_toggle()
+            st.markdown("</div>", unsafe_allow_html=True)
+        with text_col:
+            st.markdown(
+                f"""
+                <div class="header-copy">
+                    <h1>{html.escape(t("app_title"))}</h1>
+                    <p>{html.escape(t("project_intro"))}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def render_text_card(text: str) -> None:
@@ -679,40 +1111,125 @@ def render_summary_controls(
     button_label: str,
     *,
     disabled: bool = False,
-) -> tuple[str, float, bool]:
+    detected_language: str | None = None,
+) -> tuple[str, float, str, str, bool]:
     """Render method, ratio, and action controls."""
     summary_method = st.selectbox(
-        "Summarization method",
+        t("summary_method"),
         options=["TF-IDF", "TextRank", "Transformer", "Compare Both", "Compare All"],
+        format_func=format_method_label,
         key="summary_method",
     )
     summary_ratio = st.selectbox(
-        "Summary ratio",
-        options=[0.10, 0.20, 0.30, 0.40],
+        t("summary_ratio"),
+        options=list(RATIO_LABEL_KEYS.keys()),
         index=1,
-        format_func=lambda value: f"{int(value * 100)}%",
+        format_func=format_ratio_label,
         key="summary_ratio",
+    )
+    turkish_model_key = render_turkish_model_control(
+        detected_language,
+        str(summary_method),
+    )
+    turkish_reduction_method = render_turkish_reduction_method_control(
+        detected_language,
+        str(summary_method),
     )
     generate_clicked = st.button(
         button_label,
         disabled=disabled,
         use_container_width=True,
     )
-    return str(summary_method), float(summary_ratio), generate_clicked
+    return (
+        str(summary_method),
+        float(summary_ratio),
+        turkish_reduction_method,
+        turkish_model_key,
+        generate_clicked,
+    )
+
+
+def _should_show_turkish_transformer_options(
+    detected_language: str | None,
+    summary_method: str,
+) -> bool:
+    """Return whether Turkish Transformer controls should be visible."""
+    normalized_language = (detected_language or "").lower().strip()
+    return (
+        normalized_language == "tr"
+        and summary_method in {"Transformer", "Compare All"}
+    )
+
+
+def render_turkish_reduction_method_control(
+    detected_language: str | None,
+    summary_method: str,
+) -> str:
+    """Render Turkish-only Transformer reduction controls when enough context exists."""
+    current_value = str(st.session_state.get("turkish_reduction_method", "textrank"))
+    if not _should_show_turkish_transformer_options(detected_language, summary_method):
+        return current_value
+
+    return str(
+        st.selectbox(
+            t("turkish_transformer_reduction_method"),
+            options=["textrank", "tfidf"],
+            index=0 if current_value != "tfidf" else 1,
+            format_func=lambda value: "TextRank" if value == "textrank" else "TF-IDF",
+            key="turkish_reduction_method",
+        )
+    )
+
+
+def render_turkish_model_control(
+    detected_language: str | None,
+    summary_method: str,
+) -> str:
+    """Render Turkish-only Transformer model selection when available."""
+    current_value = str(st.session_state.get("turkish_model_key", "mt5"))
+    if not _should_show_turkish_transformer_options(detected_language, summary_method):
+        return current_value
+
+    return str(
+        st.selectbox(
+            t("turkish_transformer_model"),
+            options=["mt5", "vbart_xlarge"],
+            index=0 if current_value != "vbart_xlarge" else 1,
+            format_func=lambda value: "mT5" if value == "mt5" else "VBART XLarge",
+            key="turkish_model_key",
+        )
+    )
 
 
 def render_method_controls(
     button_label: str,
     *,
     disabled: bool = False,
-) -> tuple[Any, str, float, bool]:
+    detected_language: str | None = None,
+) -> tuple[Any, str, float, str, str, bool]:
     """Render upload and summarization controls and return their values."""
-    uploaded_file = st.file_uploader("Upload PDF article", type=["pdf"], key="pdf_upload")
-    summary_method, summary_ratio, generate_clicked = render_summary_controls(
+    uploaded_file = st.file_uploader(t("upload_pdf_article"), type=["pdf"], key="pdf_upload")
+    if uploaded_file is None:
+        st.caption(t("please_upload_pdf"))
+    (
+        summary_method,
+        summary_ratio,
+        turkish_reduction_method,
+        turkish_model_key,
+        generate_clicked,
+    ) = render_summary_controls(
         button_label,
         disabled=disabled,
+        detected_language=detected_language,
     )
-    return uploaded_file, str(summary_method), float(summary_ratio), generate_clicked
+    return (
+        uploaded_file,
+        str(summary_method),
+        float(summary_ratio),
+        turkish_reduction_method,
+        turkish_model_key,
+        generate_clicked,
+    )
 
 
 def render_uploaded_file_card(file_name: str) -> None:
@@ -720,7 +1237,7 @@ def render_uploaded_file_card(file_name: str) -> None:
     st.markdown(
         f"""
         <div class="uploaded-file-card">
-            <strong>Uploaded file:</strong> {html.escape(file_name)}
+            <strong>{html.escape(t("uploaded_file"))}:</strong> {html.escape(file_name)}
         </div>
         """,
         unsafe_allow_html=True,
@@ -729,39 +1246,85 @@ def render_uploaded_file_card(file_name: str) -> None:
 
 def render_document_statistics(detected_language: str, stats: dict[str, Any]) -> None:
     """Render document statistics as compact metric cards."""
-    st.subheader("Document Statistics")
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Detected Language", detected_language)
-    col2.metric("Raw Words", stats["raw_word_count"])
-    col3.metric("Cleaned Words", stats["cleaned_word_count"])
-    col4.metric("Raw Characters", stats["raw_character_count"])
-    col5.metric("Cleaned Characters", stats["cleaned_character_count"])
+    st.subheader(t("document_statistics"))
+    render_metric_grid(
+        [
+            (t("language"), detected_language),
+            (t("raw_words"), stats["raw_word_count"]),
+            (t("cleaned_words"), stats["cleaned_word_count"]),
+            (t("summarization_words"), stats.get("summarization_word_count", "—")),
+            (t("raw_characters"), stats["raw_character_count"]),
+            (t("cleaned_characters"), stats["cleaned_character_count"]),
+        ],
+    )
 
 
-def render_text_tabs(extracted_text: str, display_text: str, nlp_text: str) -> None:
-    """Render raw, cleaned, and NLP text previews."""
-    raw_tab, cleaned_tab, nlp_tab = st.tabs(["Raw Text", "Cleaned Text", "NLP Text"])
+def render_preprocessing_debug(stats: dict[str, Any]) -> None:
+    """Render optional preprocessing removal counts without crowding metrics."""
+    with st.expander(t("preprocessing_debug")):
+        st.write(f"{t('removed_repeated_lines')}: {stats.get('removed_repeated_line_count', 0)}")
+        st.write(f"{t('removed_metadata_lines')}: {stats.get('removed_metadata_line_count', 0)}")
+        st.write(f"{t('removed_table_like_lines')}: {stats.get('removed_table_line_count', 0)}")
+        st.write(f"{t('removed_short_noisy_lines')}: {stats.get('removed_short_noise_line_count', 0)}")
+        st.write(f"{t('repaired_hyphenations')}: {stats.get('repaired_hyphenation_count', 0)}")
 
-    with raw_tab:
+
+def render_text_tabs(
+    extracted_text: str,
+    display_text: str,
+    nlp_text: str,
+    summarization_text: str = "",
+) -> None:
+    """Render compact text previews with advanced debug views available."""
+    processed_text = summarization_text or display_text
+    original_tab, processed_tab = st.tabs([t("original_text"), t("processed_text")])
+
+    with original_tab:
         st.text_area(
-            "Raw text preview",
+            t("original_text_preview"),
             extracted_text[:TEXT_PREVIEW_LIMIT],
             height=350,
         )
 
-    with cleaned_tab:
+    with processed_tab:
         st.text_area(
-            "Cleaned text preview",
-            display_text[:TEXT_PREVIEW_LIMIT],
+            t("processed_text_preview"),
+            processed_text[:TEXT_PREVIEW_LIMIT],
             height=350,
         )
 
-    with nlp_tab:
-        st.text_area(
-            "NLP text preview",
-            nlp_text[:TEXT_PREVIEW_LIMIT],
-            height=350,
+    with st.expander(t("advanced_text_views")):
+        raw_tab, cleaned_tab, summ_tab, nlp_tab = st.tabs(
+            [t("raw_text"), t("cleaned_text"), t("summarization_text"), t("nlp_text")]
         )
+
+        with raw_tab:
+            st.text_area(
+                t("raw_text_preview"),
+                extracted_text[:TEXT_PREVIEW_LIMIT],
+                height=280,
+            )
+
+        with cleaned_tab:
+            st.text_area(
+                t("cleaned_text_preview"),
+                display_text[:TEXT_PREVIEW_LIMIT],
+                height=280,
+            )
+
+        with summ_tab:
+            st.text_area(
+                t("summarization_text_preview"),
+                processed_text[:TEXT_PREVIEW_LIMIT],
+                height=280,
+            )
+
+        with nlp_tab:
+            st.text_area(
+                t("nlp_text_preview"),
+                nlp_text[:TEXT_PREVIEW_LIMIT],
+                height=280,
+            )
 
 
 def render_analysis_control_card(
@@ -776,28 +1339,32 @@ def render_analysis_control_card(
         f"""
         <div class="analysis-card">
             <div class="side-stat">
-                <span>File</span>
+                <span>{html.escape(t("file"))}</span>
                 <strong>{html.escape(file_name)}</strong>
             </div>
             <div class="side-stat">
-                <span>Detected language</span>
+                <span>{html.escape(t("detected_language"))}</span>
                 <strong>{html.escape(detected_language)}</strong>
             </div>
             <div class="side-stat">
-                <span>Method</span>
-                <strong>{html.escape(summary_method)}</strong>
+                <span>{html.escape(t("method"))}</span>
+                <strong>{html.escape(format_method_label(summary_method))}</strong>
             </div>
             <div class="side-stat">
-                <span>Ratio</span>
+                <span>{html.escape(t("ratio"))}</span>
                 <strong>{summary_ratio:.0%}</strong>
             </div>
             <div class="side-stat">
-                <span>Raw words</span>
+                <span>{html.escape(t("raw_words"))}</span>
                 <strong>{stats["raw_word_count"]}</strong>
             </div>
             <div class="side-stat">
-                <span>Cleaned words</span>
+                <span>{html.escape(t("cleaned_words"))}</span>
                 <strong>{stats["cleaned_word_count"]}</strong>
+            </div>
+            <div class="side-stat">
+                <span>{html.escape(t("summarization_words"))}</span>
+                <strong>{stats.get("summarization_word_count", "—")}</strong>
             </div>
         </div>
         """,
@@ -809,22 +1376,28 @@ def render_summary_result(result: dict[str, Any]) -> None:
     """Render one summarization result in the Streamlit UI."""
     method = str(result["method"])
 
-    st.markdown(f"### {method} Summary")
+    st.markdown(f"### {method} {t('summary')}")
     if result["summary"]:
         render_text_card(str(result["summary"]))
     else:
-        st.warning("No summary could be generated from the current text.")
+        st.warning(t("no_summary"))
 
     if result.get("message"):
         st.info(str(result["message"]))
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Original Sentences", result["original_sentence_count"])
-    col2.metric("Valid Sentences", result["valid_sentence_count"])
-    col3.metric("Selected Sentences", result["selected_sentence_count"])
-    col4.metric("Summary Ratio", f"{result['summary_ratio']:.0%}")
+    render_metric_grid(
+        [
+            (t("language"), result.get("language")),
+            (t("input_words"), result.get("input_word_count")),
+            (t("summary_words"), result.get("summary_word_count")),
+            (t("original"), result["original_sentence_count"]),
+            (t("valid"), result["valid_sentence_count"]),
+            (t("selected"), result["selected_sentence_count"]),
+            (t("ratio"), f"{result['summary_ratio']:.0%}"),
+        ],
+    )
 
-    with st.expander(f"{method} selected sentences"):
+    with st.expander(f"{method} {t('selected_sentences')}"):
         for index, sentence in enumerate(result["selected_sentences"], start=1):
             st.write(f"{index}. {sentence}")
 
@@ -832,51 +1405,26 @@ def render_summary_result(result: dict[str, Any]) -> None:
 def render_comparison_metrics(comparison: dict[str, Any]) -> None:
     """Render TF-IDF and TextRank comparison metrics."""
     sentence_overlap = comparison["sentence_overlap"]
-    metrics_table = [
-        {
-            "Metric": "Original word count",
-            "Value": comparison["original_word_count"],
-        },
-        {
-            "Metric": "TF-IDF summary word count",
-            "Value": comparison["tfidf_word_count"],
-        },
-        {
-            "Metric": "TextRank summary word count",
-            "Value": comparison["textrank_word_count"],
-        },
-        {
-            "Metric": "TF-IDF compression ratio",
-            "Value": f"{comparison['tfidf_compression_ratio']:.2%}",
-        },
-        {
-            "Metric": "TextRank compression ratio",
-            "Value": f"{comparison['textrank_compression_ratio']:.2%}",
-        },
-        {
-            "Metric": "Common selected sentences",
-            "Value": sentence_overlap["common_sentence_count"],
-        },
-        {
-            "Metric": "Jaccard similarity",
-            "Value": f"{sentence_overlap['jaccard_similarity']:.2%}",
-        },
-        {
-            "Metric": "Overlap percentage",
-            "Value": f"{sentence_overlap['overlap_percentage']:.2f}%",
-        },
-    ]
+    st.markdown(f"### {t('comparison_metrics')}")
+    render_metric_grid(
+        [
+            (t("original_words"), comparison["original_word_count"]),
+            (t("tfidf_words"), comparison["tfidf_word_count"]),
+            (t("textrank_words"), comparison["textrank_word_count"]),
+            (t("tfidf_compression"), f"{comparison['tfidf_compression_ratio']:.2%}"),
+            (t("textrank_compression"), f"{comparison['textrank_compression_ratio']:.2%}"),
+            (t("common_selected_sentences"), sentence_overlap["common_sentence_count"]),
+            (t("jaccard_similarity"), f"{sentence_overlap['jaccard_similarity']:.2%}"),
+        ],
+    )
 
-    st.markdown("### Comparison Metrics")
-    st.table(metrics_table)
-
-    with st.expander("Common selected sentences"):
+    with st.expander(t("common_selected_sentences")):
         common_sentences = sentence_overlap["common_sentences"]
         if common_sentences:
             for index, sentence in enumerate(common_sentences, start=1):
                 st.write(f"{index}. {sentence}")
         else:
-            st.write("No common selected sentences.")
+            st.write(t("no_common_selected_sentences"))
 
 
 def render_compare_both_results(
@@ -904,63 +1452,20 @@ def render_compare_both_results(
 def render_all_methods_comparison_metrics(comparison: dict[str, Any]) -> None:
     """Render comparison metrics for all available summarization methods."""
     sentence_overlap = comparison["sentence_overlap"]
-    metrics_table = [
-        {
-            "Metric": "Original word count",
-            "Value": comparison["original_word_count"],
-        },
-        {
-            "Metric": "TF-IDF summary word count",
-            "Value": comparison["tfidf_word_count"],
-        },
-        {
-            "Metric": "TextRank summary word count",
-            "Value": comparison["textrank_word_count"],
-        },
-        {
-            "Metric": "Transformer summary word count",
-            "Value": comparison["transformer_word_count"],
-        },
-        {
-            "Metric": "TF-IDF compression ratio",
-            "Value": f"{comparison['tfidf_compression_ratio']:.2%}",
-        },
-        {
-            "Metric": "TextRank compression ratio",
-            "Value": f"{comparison['textrank_compression_ratio']:.2%}",
-        },
-        {
-            "Metric": "Transformer compression ratio",
-            "Value": f"{comparison['transformer_compression_ratio']:.2%}",
-        },
-        {
-            "Metric": "TF-IDF selected sentence count",
-            "Value": comparison["tfidf_selected_sentence_count"],
-        },
-        {
-            "Metric": "TextRank selected sentence count",
-            "Value": comparison["textrank_selected_sentence_count"],
-        },
-        {
-            "Metric": "Transformer chunk count",
-            "Value": comparison["transformer_chunk_count"],
-        },
-        {
-            "Metric": "TF-IDF/TextRank common selected sentences",
-            "Value": sentence_overlap["common_sentence_count"],
-        },
-        {
-            "Metric": "TF-IDF/TextRank Jaccard similarity",
-            "Value": f"{sentence_overlap['jaccard_similarity']:.2%}",
-        },
-        {
-            "Metric": "TF-IDF/TextRank overlap percentage",
-            "Value": f"{sentence_overlap['overlap_percentage']:.2f}%",
-        },
-    ]
-
-    st.markdown("### All Methods Comparison Metrics")
-    st.table(metrics_table)
+    st.markdown(f"### {t('all_methods_comparison_metrics')}")
+    render_metric_grid(
+        [
+            (t("original_words"), comparison["original_word_count"]),
+            (t("tfidf_words"), comparison["tfidf_word_count"]),
+            (t("textrank_words"), comparison["textrank_word_count"]),
+            (t("transformer_words"), comparison["transformer_word_count"]),
+            (t("tfidf_compression"), f"{comparison['tfidf_compression_ratio']:.2%}"),
+            (t("textrank_compression"), f"{comparison['textrank_compression_ratio']:.2%}"),
+            (t("transformer_compression"), f"{comparison['transformer_compression_ratio']:.2%}"),
+            (t("common_selected_sentences"), sentence_overlap["common_sentence_count"]),
+            (t("jaccard_similarity"), f"{sentence_overlap['jaccard_similarity']:.2%}"),
+        ],
+    )
 
 
 def render_compare_all_results(
@@ -996,7 +1501,7 @@ def render_compare_all_results(
 
 def render_transformer_result(result: dict[str, Any]) -> None:
     """Render one Transformer summarization result in the Streamlit UI."""
-    st.markdown("### Transformer Summary")
+    st.markdown(f"### {t('transformer_summary')}")
 
     error_message = result.get("error")
     warning_message = result.get("warning")
@@ -1012,32 +1517,30 @@ def render_transformer_result(result: dict[str, Any]) -> None:
     if result["summary"]:
         render_text_card(str(result["summary"]))
     elif not error_message:
-        st.warning("No summary was generated.")
+        st.warning(t("no_summary_generated"))
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Model", result["model_name"])
-    col2.metric("Detected Language", result["language"])
-    col3.metric("Chunks", result["chunk_count"])
-    col4.metric("Input Words", result["input_word_count"])
-    col5.metric("Summary Words", result["summary_word_count"])
+    metrics = [
+        (t("language"), result.get("language")),
+        (t("model"), friendly_model_name(result)),
+        (t("chunks"), result.get("chunk_count")),
+        (t("input_words"), result.get("input_word_count")),
+        (t("summary_words"), result.get("summary_word_count")),
+    ]
+    if "reduced_input_word_count" in result:
+        metrics.append((t("reduced_words"), result["reduced_input_word_count"]))
+    if "extractive_ratio" in result:
+        metrics.append((t("ratio"), f"{result['extractive_ratio']:.0%}"))
+    if "reduction_method" in result:
+        metrics.append((t("reduction"), friendly_reduction_name(result["reduction_method"])))
+    render_metric_grid(metrics)
 
-    if (
-        "reduced_input_word_count" in result
-        or "extractive_ratio" in result
-    ):
-        extra_col1, extra_col2 = st.columns(2)
-        if "reduced_input_word_count" in result:
-            extra_col1.metric("Reduced Input Words", result["reduced_input_word_count"])
-        if "extractive_ratio" in result:
-            extra_col2.metric("Extractive Ratio", f"{result['extractive_ratio']:.0%}")
-
-    with st.expander("Chunk summaries"):
+    with st.expander(t("chunk_summaries")):
         chunk_summaries = result["chunk_summaries"]
         if chunk_summaries:
             for index, chunk_summary in enumerate(chunk_summaries, start=1):
                 st.write(f"{index}. {chunk_summary}")
         else:
-            st.write("No chunk summaries available.")
+            st.write(t("no_chunk_summaries"))
 
     if (
         error_message
@@ -1045,30 +1548,34 @@ def render_transformer_result(result: dict[str, Any]) -> None:
         or rejected_chunk_summaries
         or source_filtered_sentences
     ):
-        with st.expander("Debug details"):
+        with st.expander(t("debug_details")):
             if error_message:
-                st.write(f"Error: {error_message}")
+                st.write(f"{t('error')}: {error_message}")
             if warning_message:
-                st.write(f"Warning: {warning_message}")
-            st.write(f"Model: {result['model_name']}")
-            st.write(f"Detected language: {result['language']}")
-            st.write(f"Chunk count: {result['chunk_count']}")
-            st.write(f"Input word count: {result['input_word_count']}")
+                st.write(f"{t('warning')}: {warning_message}")
+            st.write(f"{t('model_id')}: {result['model_name']}")
+            if "turkish_model" in result:
+                st.write(f"{t('turkish_model')}: {result['turkish_model']}")
+            st.write(f"{t('detected_language')}: {result['language']}")
+            st.write(f"{t('chunks')}: {result['chunk_count']}")
+            st.write(f"{t('input_words')}: {result['input_word_count']}")
             if "reduced_input_word_count" in result:
-                st.write(f"Reduced input word count: {result['reduced_input_word_count']}")
+                st.write(f"{t('reduced_words')}: {result['reduced_input_word_count']}")
             if "extractive_ratio" in result:
-                st.write(f"Extractive ratio: {result['extractive_ratio']:.2f}")
-            st.write(f"Summary word count: {result['summary_word_count']}")
+                st.write(f"{t('extractive_ratio')}: {result['extractive_ratio']:.2f}")
+            if "reduction_method" in result:
+                st.write(f"{t('reduction_method')}: {result['reduction_method']}")
+            st.write(f"{t('summary_words')}: {result['summary_word_count']}")
             if chunk_errors:
-                st.write("Chunk errors:")
+                st.write(t("chunk_errors"))
                 for error in chunk_errors:
                     st.write(f"- {error}")
             if rejected_chunk_summaries:
-                st.write("Rejected chunk summaries:")
+                st.write(t("rejected_chunk_summaries"))
                 for index, summary in enumerate(rejected_chunk_summaries, start=1):
                     st.write(f"{index}. {summary}")
             if source_filtered_sentences:
-                st.write("Source-filtered sentences:")
+                st.write(t("source_filtered_sentences"))
                 for index, sentence in enumerate(source_filtered_sentences, start=1):
                     st.write(f"{index}. {sentence}")
 
@@ -1082,7 +1589,7 @@ def process_uploaded_pdf(
     if progress_bar is not None:
         progress_bar.progress(5)
     if status_text is not None:
-        update_loading_status(status_text, "Reading PDF text...")
+        update_loading_status(status_text, t("reading_pdf"))
 
     try:
         extracted_text = extract_text_from_pdf(uploaded_file.getvalue())
@@ -1091,34 +1598,50 @@ def process_uploaded_pdf(
         return None
 
     if not extracted_text.strip():
-        st.warning("No extractable text was found in this PDF.")
+        st.warning(t("no_extractable_text"))
         return None
 
     if progress_bar is not None:
         progress_bar.progress(25)
     if status_text is not None:
-        update_loading_status(status_text, "Detecting language...")
+        update_loading_status(status_text, t("detecting_language"))
     detected_language = detect_language(extracted_text)
 
     if progress_bar is not None:
         progress_bar.progress(45)
     if status_text is not None:
-        update_loading_status(status_text, "Cleaning academic text...")
+        update_loading_status(status_text, t("cleaning_text"))
     preprocessing_result = preprocess_text(extracted_text, detected_language)
     stats = preprocessing_result["stats"]
 
     if not isinstance(stats, dict):
-        st.error("Preprocessing failed to produce document statistics.")
+        st.error(t("preprocessing_failed"))
         return None
+
+    summarization_text = str(preprocessing_result.get("summarization_text", ""))
+    display_text = str(preprocessing_result["display_text"])
 
     return {
         "file_name": uploaded_file.name,
         "extracted_text": extracted_text,
         "detected_language": detected_language,
-        "display_text": str(preprocessing_result["display_text"]),
+        "display_text": display_text,
+        "summarization_text": summarization_text,
         "nlp_text": str(preprocessing_result["nlp_text"]),
         "stats": stats,
     }
+
+
+def enrich_result_metrics(
+    result: dict[str, Any],
+    detected_language: str,
+    input_text: str,
+) -> dict[str, Any]:
+    """Add UI-only metric fields without changing summarization behavior."""
+    result.setdefault("language", detected_language)
+    result.setdefault("input_word_count", _word_count(input_text))
+    result.setdefault("summary_word_count", _word_count(result.get("summary", "")))
+    return result
 
 
 def generate_summary_payload(
@@ -1126,37 +1649,75 @@ def generate_summary_payload(
     summary_ratio: float,
     display_text: str,
     detected_language: str,
+    summarization_text: str = "",
+    turkish_reduction_method: str = "textrank",
+    turkish_model_key: str = "mt5",
 ) -> dict[str, Any]:
     """Generate a summary payload for the selected UI mode."""
+    # Use summarization_text as primary input for all summarizers
+    input_text = (
+        summarization_text
+        if summarization_text.strip() and len(summarization_text.split()) >= 100
+        else display_text
+    )
     if summary_method == "TF-IDF":
+        result = summarize_with_tfidf(
+            input_text,
+            summary_ratio=summary_ratio,
+            language=detected_language,
+        )
         return {
             "mode": "single_extractive",
-            "result": summarize_with_tfidf(display_text, summary_ratio=summary_ratio),
+            "result": enrich_result_metrics(result, detected_language, input_text),
         }
 
     if summary_method == "TextRank":
+        result = summarize_with_textrank(
+            input_text,
+            summary_ratio=summary_ratio,
+            language=detected_language,
+        )
         return {
             "mode": "single_extractive",
-            "result": summarize_with_textrank(display_text, summary_ratio=summary_ratio),
+            "result": enrich_result_metrics(result, detected_language, input_text),
         }
 
     if summary_method == "Transformer":
         if detected_language == "en":
-            transformer_result = summarize_english_transformer(display_text)
+            transformer_result = summarize_english_transformer(input_text)
         elif detected_language == "tr":
-            transformer_result = summarize_turkish_hybrid_transformer(display_text)
+            transformer_result = summarize_turkish_hybrid_transformer(
+                input_text,
+                extractive_ratio=summary_ratio,
+                reduction_method=turkish_reduction_method,
+                turkish_model_key=turkish_model_key,
+            )
         else:
             transformer_result = summarize_with_transformer(
-                display_text,
+                input_text,
                 detected_language,
             )
-        return {"mode": "transformer", "result": transformer_result}
+        return {
+            "mode": "transformer",
+            "result": enrich_result_metrics(
+                transformer_result,
+                detected_language,
+                input_text,
+            ),
+        }
 
-    tfidf_result = summarize_with_tfidf(display_text, summary_ratio=summary_ratio)
-    textrank_result = summarize_with_textrank(
-        display_text,
+    tfidf_result = summarize_with_tfidf(
+        input_text,
         summary_ratio=summary_ratio,
+        language=detected_language,
     )
+    textrank_result = summarize_with_textrank(
+        input_text,
+        summary_ratio=summary_ratio,
+        language=detected_language,
+    )
+    tfidf_result = enrich_result_metrics(tfidf_result, detected_language, input_text)
+    textrank_result = enrich_result_metrics(textrank_result, detected_language, input_text)
 
     if summary_method == "Compare Both":
         return {
@@ -1166,15 +1727,18 @@ def generate_summary_payload(
         }
 
     if detected_language == "en":
-        transformer_result = summarize_english_transformer(display_text)
+        transformer_result = summarize_english_transformer(input_text)
     elif detected_language == "tr":
-        transformer_result = summarize_turkish_hybrid_transformer(display_text)
-    else:
-        st.warning(
-            "Transformer summarization requires detected language to be English or Turkish."
+        transformer_result = summarize_turkish_hybrid_transformer(
+            input_text,
+            extractive_ratio=summary_ratio,
+            reduction_method=turkish_reduction_method,
+            turkish_model_key=turkish_model_key,
         )
+    else:
+        st.warning(t("transformer_language_warning"))
         transformer_result = summarize_with_transformer(
-            display_text,
+            input_text,
             detected_language,
         )
 
@@ -1182,7 +1746,11 @@ def generate_summary_payload(
         "mode": "compare_all",
         "tfidf_result": tfidf_result,
         "textrank_result": textrank_result,
-        "transformer_result": transformer_result,
+        "transformer_result": enrich_result_metrics(
+            transformer_result,
+            detected_language,
+            input_text,
+        ),
     }
 
 
@@ -1213,6 +1781,8 @@ def generate_and_store_summary(
     uploaded_file: Any,
     summary_method: str,
     summary_ratio: float,
+    turkish_reduction_method: str = "textrank",
+    turkish_model_key: str = "mt5",
 ) -> None:
     """Run document processing and summarization with lightweight progress UI."""
     progress_bar = st.progress(0)
@@ -1229,22 +1799,27 @@ def generate_and_store_summary(
         return
 
     progress_bar.progress(70)
-    update_loading_status(status_text, "Generating summary...")
+    update_loading_status(status_text, t("generating_summary"))
     summary_payload = generate_summary_payload(
         summary_method,
         summary_ratio,
         str(document["display_text"]),
         str(document["detected_language"]),
+        summarization_text=str(document.get("summarization_text", "")),
+        turkish_reduction_method=turkish_reduction_method,
+        turkish_model_key=turkish_model_key,
     )
 
     progress_bar.progress(95)
-    update_loading_status(status_text, "Preparing results...")
+    update_loading_status(status_text, t("preparing_results"))
     st.session_state["document_payload"] = document
     st.session_state["summary_payload"] = summary_payload
     st.session_state["last_summary_method"] = summary_method
     st.session_state["last_summary_ratio"] = summary_ratio
+    st.session_state["last_turkish_reduction_method"] = turkish_reduction_method
+    st.session_state["last_turkish_model_key"] = turkish_model_key
     progress_bar.progress(100)
-    update_loading_status(status_text, "Preparing results...")
+    update_loading_status(status_text, t("preparing_results"))
     st.rerun()
 
 
@@ -1270,17 +1845,27 @@ def main() -> None:
                 str(document_payload["detected_language"]),
                 document_payload["stats"],
                 str(st.session_state.get("last_summary_method", "TF-IDF")),
-                float(st.session_state.get("last_summary_ratio", 0.20)),
+                float(st.session_state.get("last_summary_ratio", 0.15)),
             )
-            with st.expander("Change PDF"):
+            render_preprocessing_debug(document_payload["stats"])
+            with st.expander(t("change_pdf")):
                 uploaded_file = st.file_uploader(
-                    "Upload PDF article",
+                    t("upload_pdf_article"),
                     type=["pdf"],
                     key="pdf_upload",
                 )
             with st.container(border=True):
-                summary_method, summary_ratio, generate_summary = (
-                    render_summary_controls("Generate Again")
+                (
+                    summary_method,
+                    summary_ratio,
+                    turkish_reduction_method,
+                    turkish_model_key,
+                    generate_summary,
+                ) = (
+                    render_summary_controls(
+                        t("generate_again"),
+                        detected_language=str(document_payload["detected_language"]),
+                    )
                 )
 
             if uploaded_file is not None:
@@ -1291,6 +1876,8 @@ def main() -> None:
                     st.session_state.pop("summary_payload", None)
                     st.session_state.pop("document_payload", None)
                     st.session_state["active_file_signature"] = uploaded_signature
+                    st.session_state["turkish_reduction_method"] = "textrank"
+                    st.session_state["turkish_model_key"] = "mt5"
                     st.rerun()
 
             if generate_summary and uploaded_file is not None:
@@ -1298,23 +1885,35 @@ def main() -> None:
                     uploaded_file,
                     summary_method,
                     summary_ratio,
+                    turkish_reduction_method,
+                    turkish_model_key,
                 )
 
         with right_col:
             with st.container(border=True):
-                st.subheader("Summarization Results")
+                st.subheader(t("summary_results"))
                 render_summary_payload(
                     summary_payload,
-                    str(document_payload["display_text"]),
+                    str(
+                        document_payload.get("summarization_text")
+                        or document_payload["display_text"]
+                    ),
                 )
         return
 
     st.markdown('<div class="center-shell">', unsafe_allow_html=True)
     render_center_header()
     with st.container(border=True):
-        uploaded_file, summary_method, summary_ratio, generate_summary = (
+        (
+            uploaded_file,
+            summary_method,
+            summary_ratio,
+            turkish_reduction_method,
+            turkish_model_key,
+            generate_summary,
+        ) = (
             render_method_controls(
-                "Generate Summary",
+                t("generate_summary"),
                 disabled=st.session_state.get("pdf_upload") is None,
             )
         )
@@ -1326,11 +1925,19 @@ def main() -> None:
     uploaded_signature = f"{uploaded_file.name}:{getattr(uploaded_file, 'size', 0)}"
     if uploaded_signature != st.session_state.get("active_file_signature"):
         st.session_state["active_file_signature"] = uploaded_signature
+        st.session_state["turkish_reduction_method"] = "textrank"
+        st.session_state["turkish_model_key"] = "mt5"
         st.session_state.pop("summary_payload", None)
         st.session_state.pop("document_payload", None)
 
     if generate_summary:
-        generate_and_store_summary(uploaded_file, summary_method, summary_ratio)
+        generate_and_store_summary(
+            uploaded_file,
+            summary_method,
+            summary_ratio,
+            turkish_reduction_method,
+            turkish_model_key,
+        )
         return
 
     document = process_uploaded_pdf(uploaded_file)
@@ -1340,10 +1947,20 @@ def main() -> None:
 
     render_uploaded_file_card(str(document["file_name"]))
     render_document_statistics(str(document["detected_language"]), document["stats"])
+    render_preprocessing_debug(document["stats"])
+    render_turkish_model_control(
+        str(document["detected_language"]),
+        summary_method,
+    )
+    render_turkish_reduction_method_control(
+        str(document["detected_language"]),
+        summary_method,
+    )
     render_text_tabs(
         str(document["extracted_text"]),
         str(document["display_text"]),
         str(document["nlp_text"]),
+        summarization_text=str(document.get("summarization_text", "")),
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
